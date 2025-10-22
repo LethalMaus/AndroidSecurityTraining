@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "dev.jamescullimore.android_security_training",
+      "sha256_cert_fingerprints": [
+        "118EE6961CEE9A9A4A6F2228ACB5B804C783D5642D3AD7B3DB8B4130F8EC082C"
+      ]
+    }
+  }
+]
