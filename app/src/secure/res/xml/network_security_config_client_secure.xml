@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Disallow user-added CAs, use only system certs -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <!-- No user certs in secure profile -->
+        </trust-anchors>
+    </base-config>
+
+    <!-- CT-only by default at config level; pinning is controlled in code per demo mode -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.github.com</domain>
+        <certificateTransparency enabled="true"/>
+        <!-- No <pin-set> here so we can toggle pins in code (bad/good) or run CT-only -->
+    </domain-config>
+</network-security-config>
