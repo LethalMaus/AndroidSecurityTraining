@@ -84,12 +84,28 @@ class VulnWebViewHelper : WebViewHelper {
 
     override fun exposePendingIntent(context: Context): String {
         // Create a mutable PendingIntent and expose via a sticky broadcast (anti-pattern)
+        // Avoid hard compile-time reference to WebActivity (exists only in 'web' topic source set)
+        val attackUri = "http://attacker.example/pwn".toUri()
+        val i = Intent(Intent.ACTION_VIEW, attackUri)
+
+        // If the WebActivity exists in this variant, target it explicitly; otherwise fall back to generic VIEW
+        val webActivityClass = "dev.jamescullimore.android_security_training.WebActivity"
+        val pm = context.packageManager
+        val cn = android.content.ComponentName(context.packageName, webActivityClass)
+        val hasWebActivity = try {
+            pm.getActivityInfo(cn, 0)
+            true
+        } catch (t: Throwable) {
+            false
+        }
+        if (hasWebActivity) {
+            i.setClassName(context.packageName, webActivityClass)
+        }
+
         val pi = PendingIntent.getActivity(
-            context, 0,
-            Intent(context, dev.jamescullimore.android_security_training.WebActivity::class.java).apply {
-                action = Intent.ACTION_VIEW
-                data = "http://attacker.example/pwn".toUri()
-            },
+            context,
+            0,
+            i,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
         leakedPendingIntent = pi

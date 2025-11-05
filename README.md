@@ -80,6 +80,36 @@ Each topic below tells you what to try (lab guide), what “secure” does vs. �
   - OWASP MASVS‑NET: https://mas.owasp.org/MASVS/ (networking & crypto controls)
   - Android developers: HTTPS best practices: https://developer.android.com/privacy-and-security/security-ssl
 
+#### Build switches: MANUAL_PIN and PIN_MODE (how the pinning demo behaves)
+- Where they live: `app/build.gradle.kts` → secure flavor defines two BuildConfig flags used by the pinning demos:
+  - `MANUAL_PIN` (boolean): routes secure builds to a custom TrustManager path meant for training.
+    - `true` → uses `ManualPinNetworkHelper` (custom TrustManager + SPKI pin enforcement).
+    - `false` → uses `SecureNetworkHelper` (OkHttp + platform trust, optional OkHttp CertificatePinner).
+  - `PIN_MODE` (string): selects the demo behavior. Recognized values depend on the path:
+    - Common to both paths:
+      - `bad` → deliberately wrong pins so requests FAIL (demonstrates pin failure).
+      - `good` → correct SPKI pins so requests SUCCEED when not intercepted.
+      - `ct` → no code pins; rely on platform trust + Network Security Config with Certificate Transparency (CT). SUCCEED without interception; likely FAIL under MITM.
+    - Manual path only (when `MANUAL_PIN = true`):
+      - `mitm` → debug‑only helper that trusts the MITM proxy chain and SKIPS SPKI pins so you can intercept HTTPS for the demo. Hostname verification remains on. Intended for emulator/lab use only.
+
+- Defaults in this repo (subject to change):
+  - Secure flavor sets `MANUAL_PIN = true` and `PIN_MODE = "mitm"` to make the manual path work with mitmproxy out of the box for the lab.
+
+- How to change modes
+  - Edit `app/build.gradle.kts` under the `secure` product flavor and tweak `buildConfigField` values, then rebuild.
+  - Example toggles:
+    - Use strong, library pinning: set `MANUAL_PIN = false`, `PIN_MODE = "good"` (OkHttp CertificatePinner).
+    - CT‑only: set `MANUAL_PIN = false`, `PIN_MODE = "ct"`.
+    - Manual pinning demo with failure: set `MANUAL_PIN = true`, `PIN_MODE = "bad"`.
+    - Manual pinning demo with success: set `MANUAL_PIN = true`, `PIN_MODE = "good"`.
+    - Interception demo (emulator/lab): set `MANUAL_PIN = true`, `PIN_MODE = "mitm"` and enable your proxy (see quick setup below).
+
+- Important notes
+  - The manual TrustManager is for training only; rolling your own TM is risky. Prefer OkHttp's `CertificatePinner` or Network Security Config pins for real apps.
+  - The `mitm` mode is intentionally insecure and intended for Debug builds only. Release builds should never trust user CAs or bypass pins.
+  - In secure production builds, keep user‑installed CAs disabled in Network Security Config and avoid custom TrustManagers.
+
 ### 2. End‑to‑end encryption (E2E)
 #### Where in code
   - API surface: `app/src/main/java/.../crypto/CryptoHelper.kt`
@@ -98,6 +128,47 @@ Each topic below tells you what to try (lab guide), what “secure” does vs. �
   - Cryptography best practices (Android): https://developer.android.com/privacy-and-security/crypto
   - OWASP MASVS‑CRYPTO: https://mas.owasp.org/MASVS/
   - NIST SP 800‑38D (GCM): https://csrc.nist.gov/publications/detail/sp/800-38d/final
+
+#### ECB pattern‑leakage demo (vulnerable E2E)
+This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blocks encrypt to identical ciphertext blocks. The vulnerable E2E build intentionally uses ECB under the button labeled “Encrypt Locally (AES‑GCM)” so you can see the leakage without writing code.
+
+- Where in code
+  - API surface: `app/src/main/java/.../crypto/CryptoHelper.kt`
+  - Vulnerable helper (uses ECB): `app/src/vuln/java/.../crypto/VulnCryptoHelper.kt`
+    - `encryptAesGcm(...)` actually calls `Cipher.getInstance("AES/ECB/PKCS5Padding")` and returns zeroed iv/tag for display.
+  - E2E screen: `app/src/e2e/java/.../E2EActivity.kt`
+
+- Build this variant
+  - Android Studio → Build Variants → Module: app → set Active Build Variant to `clientVulnE2eDebug`.
+
+- Steps in the app
+  1) Launch the app; you should be on the “Encrypting Data Before Transport” (E2E) screen.
+  2) In the “JSON Payload” field, paste the following exact, pre‑aligned JSON:
+
+```
+{"type":"demo","pad":"x","msg":"ABCDEFGHIJKLMNOPABCDEFGHIJKLMNOPABCDEFGHIJKLMNOPABCDEFGHIJKLMNOPABCDEFGHIJKLMNOPABCDEFGHIJKLMNOP"}
+```
+
+  Notes:
+  - "ABCDEFGHIJKLMNOP" is 16 bytes. It’s repeated many times.
+  - The tiny "pad":"x" aligns the start of msg on a 16‑byte boundary in the overall plaintext so blocks line up.
+  3) Tap “Encrypt Locally (AES‑GCM)”. In this vulnerable build, that button uses ECB.
+  4) Look at the `CT=` line in the on‑screen result. You’ll notice repeating Base64 chunks at regular intervals (every 24 Base64 chars ≈ one 16‑byte block), illustrating ECB’s pattern leakage. The beginning/end blocks differ (JSON keys and PKCS#7 padding), but the middle msg blocks repeat identically.
+
+- Optional verification
+  - Copy the CT Base64 from the result. Decode and split into 16‑byte blocks with any hex tool or script; you’ll see many identical blocks in a row.
+
+- Troubleshooting
+  - If you don’t see repetition:
+    - Confirm the variant is `clientVulnE2eDebug` (not secure).
+    - Use the exact JSON (no extra spaces or newlines).
+    - Add more `ABCDEFGHIJKLMNOP` repeats inside `msg` to amplify the effect.
+
+- Contrast with secure build
+  - Switch to `clientSecureE2eDebug` and repeat with the same JSON. The secure helper uses real AES‑GCM with a random IV, so ciphertext will not show repeating patterns and includes a valid IV and TAG.
+
+- Why this matters
+  - ECB has no IV and no chaining. Identical plaintext blocks under the same key produce identical ciphertext blocks, leaking structure. AEAD modes (e.g., AES‑GCM) provide confidentiality and integrity and use nonces to avoid this leakage.
 
 ### 3. Reverse‑engineering resistance
 #### Where in code
