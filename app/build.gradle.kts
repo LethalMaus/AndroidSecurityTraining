@@ -39,6 +39,7 @@ android {
             applicationIdSuffix = ".secure"
             versionNameSuffix = "-secure"
             buildConfigField("boolean", "MANUAL_PIN", "false")
+            // Can be good, bad, ct or mitm
             buildConfigField("String", "PIN_MODE", "\"bad\"")
         }
         create("vuln") {
@@ -48,53 +49,33 @@ android {
         }
         create("pinning") {
             dimension = "topic"
-            applicationIdSuffix = ".pinning"
-            versionNameSuffix = "-pinning"
         }
         create("e2e") {
             dimension = "topic"
-            applicationIdSuffix = ".e2e"
-            versionNameSuffix = "-e2e"
         }
         create("re") {
             dimension = "topic"
-            applicationIdSuffix = ".re"
-            versionNameSuffix = "-re"
         }
         create("perm") {
             dimension = "topic"
-            applicationIdSuffix = ".perm"
-            versionNameSuffix = "-perm"
         }
         create("links") {
             dimension = "topic"
-            applicationIdSuffix = ".links"
-            versionNameSuffix = "-links"
         }
         create("storage") {
             dimension = "topic"
-            applicationIdSuffix = ".storage"
-            versionNameSuffix = "-storage"
         }
         create("root") {
             dimension = "topic"
-            applicationIdSuffix = ".root"
-            versionNameSuffix = "-root"
         }
         create("web") {
             dimension = "topic"
-            applicationIdSuffix = ".web"
-            versionNameSuffix = "-web"
         }
         create("users") {
             dimension = "topic"
-            applicationIdSuffix = ".users"
-            versionNameSuffix = "-users"
         }
         create("risks") {
             dimension = "topic"
-            applicationIdSuffix = ".risks"
-            versionNameSuffix = "-risks"
         }
     }
 
