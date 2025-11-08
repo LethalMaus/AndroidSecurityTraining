@@ -174,34 +174,201 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
 #### Where in code
   - Secure helper: `app/src/secure/java/.../re/SecureReDemoHelper.kt`
   - Vulnerable helper: `app/src/vuln/java/.../re/VulnReDemoHelper.kt`
-#### Lab guide
-  1) Run vuln and inspect the APK (strings/resources can reveal secrets). Try patching/smali modifications.
-  2) Run secure and observe checks (e.g., signature digest) and reduced exposed data.
+  - Gradle flavors for this topic: `re` combined with `secure` or `vuln` (see `app/build.gradle.kts`)
+
+#### Pre‑lab checklist
+- Android Studio + adb available
+- jadx‐gui and apktool installed
+- A keystore for re‑signing (can generate a temporary one)
+
+#### Lab guide (hands‑on)
+1) Build the vulnerable RE APK
+   - Gradle task:
+     ```
+     ./gradlew :app:assembleClientVulnReDebug
+     ```
+   - Output path example:
+     ```
+     ls app/build/outputs/apk/clientVulnRe/debug/
+     ```
+   - You should see `clientVulnRe-debug.apk`.
+
+2) Decompile with JADX (quick source view)
+   - Open in JADX:
+     ```
+     jadx-gui app/build/outputs/apk/.../clientVulnRe-debug.apk
+     ```
+   - Search for obvious findings:
+     - `SUPER_SECRET_API_KEY`
+     - `DexClassLoader`
+     - `assets/sensitive.txt`
+   - Note any hardcoded strings, keys, or debug logs.
+
+3) Decode resources with apktool (smali/manifest/assets)
+   - Decode:
+     ```
+     apktool d clientVulnRe-debug.apk -o out_vuln
+     ```
+   - Inspect inside `out_vuln/`:
+     - `AndroidManifest.xml` (exported components, permissions)
+     - `assets/` (plain‑text files or secrets)
+     - `smali/` (methods to patch if needed)
+
+4) Extract sensitive assets quickly
+   - Without full decode:
+     ```
+     unzip -p clientVulnRe-debug.apk assets/sensitive.txt
+     ```
+   - Or pull from a device:
+     ```
+     adb shell pm path <package>
+     adb pull /data/app/.../base.apk
+     ```
+
+5) Patch the runtime signature check (tampering demo)
+   - Locate the helper (e.g., `SecureReDemoHelper` or similar) in smali and modify the method to return `true`, or patch the decompiled Java and recompile.
+   - Rebuild the APK with apktool:
+     ```
+     apktool b out_vuln -o patched.apk
+     ```
+
+6) Re‑sign the modified APK
+   - Generate a temporary keystore if you don’t have one:
+     ```
+     keytool -genkeypair -keystore seminar.jks -alias key0 -storepass changeit -keypass changeit -dname "CN=Seminar,O=Demo,C=US" -keyalg RSA -keysize 2048 -validity 3650
+     ```
+   - Sign and verify:
+     ```
+     apksigner sign --ks seminar.jks --ks-pass pass:changeit --key-pass pass:changeit --out patched-signed.apk patched.apk
+     apksigner verify --print-certs patched-signed.apk
+     ```
+
+7) Install and test the patched APK
+   - Replace the original if necessary:
+     ```
+     adb uninstall <package>
+     adb install -r patched-signed.apk
+     ```
+   - Verify:
+     - Does signature/tamper check now pass in the patched build?
+     - Check `logcat` for security/tamper logs.
+
+8) Dynamic DEX injection demo (if the vuln UI allows loading from storage)
+   - Build a minimal class and convert to DEX:
+     ```
+     # Example workflow
+     jar cvf dynamic.jar dev/training/dynamic/Hello.class
+     d8 --output out/ dynamic.jar
+     adb push out/classes.dex /sdcard/dynamic.dex
+     ```
+   - Use the vulnerable app UI to load `/sdcard/dynamic.dex` and execute a method. Discuss risk: unvalidated external code execution.
+
+9) R8 / obfuscation comparison
+   - Compare a debug APK vs. a release APK with `minifyEnabled = true`.
+   - Observe differences in JADX: identifiers renamed, dead code removed, logs stripped.
+
+#### Group deliverables (for workshops)
+- Screenshot of an extracted secret/asset
+- Screenshot of the patched app running
+- Short write‑up: 3 risks found + 3 mitigations
+
+#### Troubleshooting
+- `apktool b` failures → check resources/apktool version mismatch
+- `INSTALL_FAILED_UPDATE_INCOMPATIBLE` → uninstall the app first
+- Signature mismatches → verify keystore/alias/passwords
+- adb device issues → ensure USB debugging/emulator running
+
 #### Best practices
-  - Don’t store secrets in the APK; prefer server‑issued, short‑lived tokens.
-  - Enable R8/ProGuard shrinking/obfuscation for release; strip debug info from release.
-  - Verify app signature at runtime for critical logic paths; use SafetyNet/Play Integrity as an additional signal when appropriate.
+- Don’t store secrets in the APK; prefer server‑issued, short‑lived tokens.
+- Enable R8/ProGuard shrinking/obfuscation for release; strip debug info from release.
+- Verify app signature at runtime for critical logic paths; consider Play Integrity as an additional signal.
+
 #### Extra reading
-  - App signing & verifying: https://developer.android.com/studio/publish/app-signing
-  - Code shrinking, obfuscation, optimization: https://developer.android.com/studio/build/shrink-code
-  - OWASP MASVS‑RESILIENCE: https://mas.owasp.org/MASVS/
-  - Android app reverse engineering overview (docs): https://developer.android.com/privacy-and-security
+- App signing & verifying: https://developer.android.com/studio/publish/app-signing
+- Code shrinking, obfuscation, optimization: https://developer.android.com/studio/build/shrink-code
+- OWASP MASVS‑RESILIENCE: https://mas.owasp.org/MASVS/
+- Android app reverse engineering overview (docs): https://developer.android.com/privacy-and-security
 
 ### 4. Runtime permissions
 #### Where in code
-`app/src/perm/java/...`
-#### Lab guide
-  1) In vuln, request broad or unnecessary permissions and demonstrate data access.
-  2) In secure, request only when needed and show graceful denial handling.
+- Topic activity: `app/src/perm/java/.../PermActivity.kt`
+- Interface: `app/src/main/java/.../perm/PermDemoHelper.kt`
+- Vulnerable helper: `app/src/vuln/java/.../perm/VulnPermDemoHelper.kt`
+- Secure helper: `app/src/secure/java/.../perm/SecurePermDemoHelper.kt`
+- Topic manifest: `app/src/perm/AndroidManifest.xml`
+
+#### What this lab demonstrates
+- How Android assigns UIDs/GIDs and ties permissions to app signatures (not package names)
+- Risks of exported components without protection (Service/Provider)
+- Using a custom signature permission to restrict cross‑app access
+
+#### Build the variants
+- Vulnerable (debug):
+  ```
+  ./gradlew :app:assembleClientVulnPermDebug
+  ```
+- Secure (debug):
+  ```
+  ./gradlew :app:assembleClientSecurePermDebug
+  ```
+
+#### In‑app steps (PermActivity)
+1) Launch the app. You’ll see the Permissions & Packaging screen.
+2) Tap “Show UID/GID & Signing Info”
+   - Vulnerable: minimal info (no digest)
+   - Secure: shows Base64 SHA‑256 signer digest computed at runtime
+3) Tap “Start DemoService”
+   - Vulnerable: Often succeeds even for external callers if the Service is exported without protection
+   - Secure: Designed to be restricted; external calls should fail unless signed with the same key (signature permission)
+4) Optionally, enter a Content URI or use the default and tap “Query DemoProvider”
+   - Vulnerable: Provider likely exported without protection; query may succeed
+   - Secure: Provider should enforce a signature permission and/or not be exported; query should fail for untrusted callers
+
+#### Cross‑app/adb checks (optional, to prove enforcement)
+- Find the installed package names:
+  ```
+  adb shell pm list packages | grep android_security_training
+  ```
+- Inspect merged manifest and exported state:
+  ```
+  adb shell dumpsys package dev.jamescullimore.android_security_training.secure | sed -n '1,160p'
+  adb shell dumpsys package dev.jamescullimore.android_security_training.vuln   | sed -n '1,160p'
+  ```
+- Try to query the provider from shell (acts as shell UID, not the app):
+  ```
+  adb shell content query --uri content://<package>.demo/hello
+  ```
+  Replace `<package>` with the running variant package (secure or vuln). Expect secure to deny.
+- Try to start the service from shell:
+  ```
+  adb shell am startservice -n <package>/dev.jamescullimore.android_security_training.perm.DemoService
+  ```
+  Expect secure to deny or require matching signature; vuln may start.
+
+#### Deliverables (for workshops)
+- Screenshot of secure vs vuln behavior for Service/Provider attempts
+- Short note of what protection stopped access in secure (e.g., signature permission)
+
+#### Troubleshooting
+- If `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, uninstall first:
+  ```
+  adb uninstall dev.jamescullimore.android_security_training.secure
+  adb uninstall dev.jamescullimore.android_security_training.vuln
+  ```
+- If provider queries return null in secure: that’s expected when protected; verify logs for `SecurityException`
+- If buttons do nothing, ensure you built the `perm` topic variants and that `PermActivity` is the launcher (topic manifest provides it)
+
 #### Best practices
-  - Request the minimum set, at time‑of‑use; provide clear rationale.
-  - Handle denial and “don’t ask again” states; offer in‑app settings navigation.
-  - Avoid legacy storage permissions by using scoped storage and intents.
+- Request the minimum set, at time‑of‑use; provide clear rationale.
+- Avoid exporting components unless necessary; use signature or signatureOrSystem for intra‑suite IPC.
+- Prefer explicit intents for internal services and require permissions for any exported components.
+- Avoid legacy storage permissions by using scoped storage and intents.
+
 #### Extra reading
-  - Request app permissions: https://developer.android.com/training/permissions/requesting
-  - Best practices for permissions: https://developer.android.com/training/permissions/usage
-  - Data minimization: https://developer.android.com/topic/security/best-practices#data-min
-  - MASVS‑PLATFORM: https://mas.owasp.org/MASVS/
+- Request app permissions: https://developer.android.com/training/permissions/requesting
+- Best practices for permissions: https://developer.android.com/training/permissions/usage
+- Data minimization: https://developer.android.com/topic/security/best-practices#data-min
+- MASVS‑PLATFORM: https://mas.owasp.org/MASVS/
 
 ### 5. App links & deep links
 #### Where in code
