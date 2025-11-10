@@ -37,6 +37,11 @@ class SecureReDemoHelper : ReDemoHelper {
         return expected.isNotBlank() && actual == expected
     }
 
+    override fun getMethodToBeChangedAndResignedValue(): Boolean {
+        // In secure build, expose a constant indicator; students won't modify this build variant
+        return false
+    }
+
     private fun signingCertSha256B64(context: Context): String {
         val pm = context.packageManager
         val pkg = context.packageName

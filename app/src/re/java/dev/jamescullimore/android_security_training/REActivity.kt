@@ -74,6 +74,10 @@ fun REHome(modifier: Modifier = Modifier, appContext: Context) {
             val info = helper.getSigningInfo(appContext)
             result = "Signing cert SHA-256=\n${info}\nVerified=${helper.verifyExpectedSignature(appContext)}"
         }) { Text("Show App Signature / Verify") }
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = {
+            result = "methodToBeChangedAndResigned() value: ${helper.getMethodToBeChangedAndResignedValue()}"
+        }) { Text("Show methodToBeChangedAndResigned Value") }
         Spacer(Modifier.height(16.dp))
         Text("Result:\n$result")
         Spacer(Modifier.height(8.dp))

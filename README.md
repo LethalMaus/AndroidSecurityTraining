@@ -43,7 +43,7 @@ This README is concise but complete: purpose, prerequisites, build variants, how
 
 ## Quick start
 1) Open the project in Android Studio (latest stable).
-2) In Build Variants, choose a pair like `clientVulnPinning` (to see the issue) then `clientSecurePinning` (to see the fix).
+2) In Build Variants, choose a pair like `vulnPinning` (to see the issue) then `securePinning` (to see the fix).
 3) Run on an emulator or device and follow the on‑screen actions for the selected topic.
 4) For network labs, configure your proxy before launching the vulnerable build.
 
@@ -52,8 +52,8 @@ This README is concise but complete: purpose, prerequisites, build variants, how
   - securityProfile: `secure` (best practices) or `vuln` (intentionally unsafe). Release builds are disabled for `vuln`.
   - topic: `pinning`, `e2e`, `re`, `perm`, `links`, `storage`, `root`, `web`, `users`, `risks`.
 - The final build variant is `<securityProfile><Topic>`, for example:
-  - `clientSecurePinning`, `clientVulnPinning`
-  - `clientSecureWeb`, `clientVulnWeb`, etc.
+  - `securePinning`, `vulnPinning`
+  - `secureWeb`, `vulnWeb`, etc.
 - Routing is handled by per‑flavor providers so the right helper is compiled for each variant.
 
 ## Topics: how to run the labs
@@ -66,8 +66,8 @@ Each topic below tells you what to try (lab guide), what “secure” does vs. �
   - Vulnerable: `app/src/vuln/java/.../network/VulnNetworkHelper.kt`
   - Network Security Config (secure): `app/src/secure/res/xml/network_security_config_client_secure.xml`
 #### Lab guide (do this)
-  1) Build `clientVulnPinning` and route traffic through your proxy. Observe successful MITM using a user‑installed CA and, optionally, cleartext.
-  2) Build `clientSecurePinning` and repeat. Requests should fail when intercepted or when certificates don’t match pins.
+  1) Build `vulnPinning` and route traffic through your proxy. Observe successful MITM using a user‑installed CA and, optionally, cleartext.
+  2) Build `securePinning` and repeat. Requests should fail when intercepted or when certificates don’t match pins.
   3) Try rotating the server certificate to demonstrate pin failures.
 #### Best practices
   - Prefer HTTPS only; disallow cleartext by default.
@@ -139,7 +139,7 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
   - E2E screen: `app/src/e2e/java/.../E2EActivity.kt`
 
 - Build this variant
-  - Android Studio → Build Variants → Module: app → set Active Build Variant to `clientVulnE2eDebug`.
+  - Android Studio → Build Variants → Module: app → set Active Build Variant to `vulnE2eDebug`.
 
 - Steps in the app
   1) Launch the app; you should be on the “Encrypting Data Before Transport” (E2E) screen.
@@ -160,12 +160,12 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
 
 - Troubleshooting
   - If you don’t see repetition:
-    - Confirm the variant is `clientVulnE2eDebug` (not secure).
+    - Confirm the variant is `vulnE2eDebug` (not secure).
     - Use the exact JSON (no extra spaces or newlines).
     - Add more `ABCDEFGHIJKLMNOP` repeats inside `msg` to amplify the effect.
 
 - Contrast with secure build
-  - Switch to `clientSecureE2eDebug` and repeat with the same JSON. The secure helper uses real AES‑GCM with a random IV, so ciphertext will not show repeating patterns and includes a valid IV and TAG.
+  - Switch to `secureE2eDebug` and repeat with the same JSON. The secure helper uses real AES‑GCM with a random IV, so ciphertext will not show repeating patterns and includes a valid IV and TAG.
 
 - Why this matters
   - ECB has no IV and no chaining. Identical plaintext blocks under the same key produce identical ciphertext blocks, leaking structure. AEAD modes (e.g., AES‑GCM) provide confidentiality and integrity and use nonces to avoid this leakage.
@@ -191,7 +191,7 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
      ```
      ls app/build/outputs/apk/clientVulnRe/debug/
      ```
-   - You should see `clientVulnRe-debug.apk`.
+   - You should see `vulnRe-debug.apk`.
 
 2) Decompile with JADX (quick source view)
    - Open in JADX:
@@ -259,9 +259,10 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
      # Example workflow
      jar cvf dynamic.jar dev/training/dynamic/Hello.class
      d8 --output out/ dynamic.jar
-     adb push out/classes.dex /sdcard/dynamic.dex
+     adb shell "mkdir -p /sdcard/Android/data/dev.jamescullimore.android_security_training.vuln/files"
+     adb push out/classes.dex /sdcard/Android/data/dev.jamescullimore.android_security_training.vuln/files/dynamic.dex
      ```
-   - Use the vulnerable app UI to load `/sdcard/dynamic.dex` and execute a method. Discuss risk: unvalidated external code execution.
+   - Use the vulnerable app UI to load `/sdcard/Android/data/dev.jamescullimore.android_security_training.vuln/files/dynamic.dex` and execute a method. Discuss risk: unvalidated external code execution.
 
 9) R8 / obfuscation comparison
    - Compare a debug APK vs. a release APK with `minifyEnabled = true`.
