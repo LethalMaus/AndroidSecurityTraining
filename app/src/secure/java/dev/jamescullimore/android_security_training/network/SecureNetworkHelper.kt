@@ -43,7 +43,9 @@ class SecureNetworkHelper : NetworkHelper {
                 val badPinner = CertificatePinner.Builder()
                     .add("api.github.com",
                         "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-                        "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=")
+                        "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+                        //"sha256/KAXeO3wi3a3vmfBT/Q1P6pFoMVe1CI2IC5/f8arkEXE=" //mitmproxy pin
+                    )
                     .build()
                 builder.certificatePinner(badPinner)
             }
@@ -52,7 +54,8 @@ class SecureNetworkHelper : NetworkHelper {
                     .add(
                         "api.github.com",
                         "sha256/1EkvzibgiE3k+xdsv+7UU5vhV8kdFCQiUiFdMX5Guuk=",
-                        "sha256/fXkqYy8jL6cDXcYJvLgk0i8V0CVg28t3Tw4eBeaHeoA="
+                        "sha256/fXkqYy8jL6cDXcYJvLgk0i8V0CVg28t3Tw4eBeaHeoA=",
+                        //"sha256/KAXeO3wi3a3vmfBT/Q1P6pFoMVe1CI2IC5/f8arkEXE=" //mitmproxy pin
                     )
                     .build()
                 builder.certificatePinner(goodPinner)

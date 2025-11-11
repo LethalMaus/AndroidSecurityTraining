@@ -8,6 +8,7 @@ This README is concise but complete: purpose, prerequisites, build variants, how
 - [Purpose and scope](#purpose-and-scope)
 - [Prerequisites (tools) and before‑you‑start](#prerequisites-tools-and-before-you-start-steps)
 - [Quick start](#quick-start)
+- [MITM proxy quick setup (mitmproxy + emulator)](#mitm-proxy-quick-setup-mitmproxy--emulator)
 - [Build variants (how this project is organized)](#build-variants-how-this-project-is-organized)
 - [Topics: how to run the labs](#topics-how-to-run-the-labs)
   - [1. Certificate pinning & HTTPS](#1-certificate-pinning--https)
@@ -47,6 +48,45 @@ This README is concise but complete: purpose, prerequisites, build variants, how
 3) Run on an emulator or device and follow the on‑screen actions for the selected topic.
 4) For network labs, configure your proxy before launching the vulnerable build.
 
+## MITM proxy quick setup (mitmproxy + emulator)
+Use this to demo HTTPS interception in the pinning and E2E labs on the Android emulator.
+
+- Start mitmproxy on your host:
+  ```
+  mitmproxy --listen-host 0.0.0.0 --listen-port 8080
+  ```
+- Point the Android emulator at your host proxy (Android emulator sees the host at `10.0.2.2`):
+  ```
+  adb shell settings put global http_proxy 10.0.2.2:8080
+  ```
+- Install the mitmproxy CA certificate on the emulator (for labs only):
+  1) In the emulator browser, visit `http://mitm.it` and download the Android certificate.
+  2) Go to Settings → Security → Encryption & credentials → Install a certificate → CA certificate, and select the downloaded file.
+     - Note: Secure production builds should distrust user‑installed CAs via Network Security Config; this install is only for lab interception.
+- Remove the proxy when you’re done (to restore normal internet access):
+  ```
+  adb shell settings put global http_proxy :0
+  ```
+- Optional: Generate an SPKI pin from the mitmproxy CA cert file you downloaded (adjust filename as needed):
+  ```
+  openssl x509 -in mitmproxy-ca-cert.cer -pubkey -noout \
+    | openssl pkey -pubin -outform der \
+    | openssl dgst -sha256 -binary \
+    | openssl base64
+  ```
+- Optional: Get an SPKI pin directly from a live host (example: api.github.com):
+  ```
+  echo | openssl s_client -connect api.github.com:443 -servername api.github.com 2>/dev/null \
+    | openssl x509 -pubkey -noout \
+    | openssl pkey -pubin -outform der \
+    | openssl dgst -sha256 -binary \
+    | openssl base64
+  ```
+
+Tips
+- For the pinning lab, you can temporarily add a mitmproxy pin to the `CertificatePinner` (see comments in `SecureNetworkHelper.kt`) to observe how pinning allows or blocks interception.
+- For CT mode (`PIN_MODE = "ct"`), no pins are enforced in code; rely on platform trust and Network Security Config with Certificate Transparency enabled. Interception should typically fail even with the user CA installed.
+
 ## Build variants (how this project is organized)
 - Two flavor dimensions in `app/build.gradle.kts`:
   - securityProfile: `secure` (best practices) or `vuln` (intentionally unsafe). Release builds are disabled for `vuln`.
@@ -66,9 +106,11 @@ Each topic below tells you what to try (lab guide), what “secure” does vs. �
   - Vulnerable: `app/src/vuln/java/.../network/VulnNetworkHelper.kt`
   - Network Security Config (secure): `app/src/secure/res/xml/network_security_config_client_secure.xml`
 #### Lab guide (do this)
+  - Quick setup for interception and emulator proxy: see [MITM proxy quick setup (mitmproxy + emulator)](#mitm-proxy-quick-setup-mitmproxy--emulator).
   1) Build `vulnPinning` and route traffic through your proxy. Observe successful MITM using a user‑installed CA and, optionally, cleartext.
   2) Build `securePinning` and repeat. Requests should fail when intercepted or when certificates don’t match pins.
   3) Try rotating the server certificate to demonstrate pin failures.
+  4) Optional: Install the mitmproxy CA from `http://mitm.it` on the emulator and generate an SPKI pin for it with the OpenSSL commands in the quick setup section to experiment with pinning/CT behavior.
 #### Best practices
   - Prefer HTTPS only; disallow cleartext by default.
   - Use Network Security Config to distrust user CAs for production and limit trust anchors.
@@ -116,9 +158,11 @@ Each topic below tells you what to try (lab guide), what “secure” does vs. �
   - Secure: `app/src/secure/java/.../crypto/SecureCryptoHelper.kt`
   - Vulnerable: `app/src/vuln/java/.../crypto/VulnCryptoHelper.kt`
 #### Lab guide
+  - Quick setup for interception and emulator proxy: see [MITM proxy quick setup (mitmproxy + emulator)](#mitm-proxy-quick-setup-mitmproxy--emulator).
   1) Run the secure variant and send an encrypted payload to a demo endpoint.
   2) Compare with the vuln variant (e.g., ECB/static key or no integrity).
   3) Modify inputs and show how tampering is detected only with AEAD (GCM/ChaCha20‑Poly1305).
+  - Optional: If you want to observe/verify HTTPS transport while doing the E2E lab, install the mitmproxy CA from `http://mitm.it` on the emulator and use the OpenSSL commands from the quick setup section to generate SPKI pins (for either the mitmproxy cert or a live host like `api.github.com`). Remove the proxy with `adb shell settings put global http_proxy :0` when finished.
 #### Best practices
   - Use modern AEAD (AES‑GCM or ChaCha20‑Poly1305) with random nonces and include AAD where relevant.
   - Derive keys via a KDF and rotate regularly; never hardcode keys.
