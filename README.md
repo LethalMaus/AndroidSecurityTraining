@@ -85,7 +85,7 @@ Use this to demo HTTPS interception in the pinning and E2E labs on the Android e
 
 Tips
 - For the pinning lab, you can temporarily add a mitmproxy pin to the `CertificatePinner` (see comments in `SecureNetworkHelper.kt`) to observe how pinning allows or blocks interception.
-- For CT mode (`PIN_MODE = "ct"`), no pins are enforced in code; rely on platform trust and Network Security Config with Certificate Transparency enabled. Interception should typically fail even with the user CA installed.
+- For CT mode (`PIN_MODE = "ct"`), no pins are enforced in code; rely on platform trust and Network Security Config with Certificate Transparency enabled. Interception should typically fail unless the user CA is installed.
 
 ## Build variants (how this project is organized)
 - Two flavor dimensions in `app/build.gradle.kts`:
