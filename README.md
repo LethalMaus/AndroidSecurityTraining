@@ -419,9 +419,55 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
 #### Where in code
   - Topic manifest: `app/src/links/AndroidManifest.xml`
   - Secure helper: `app/src/secure/java/.../deeplink/SecureDeepLinkHelper.kt`
-#### Lab guide
-  1) In vuln, register overly broad intent filters; demonstrate hijack/phishing flows.
-  2) In secure, use verified app links for your domain and validate parameters/paths.
+  - Activity UI: `app/src/links/java/.../DeepLinksActivity.kt`
+  - Website DAL file: `./.well-known/assetlinks.json` (already includes base, .secure, .vuln packages)
+#### Lab guide (hands-on)
+  Goal: See how verified App Links are accepted by the secure build and how broad/unverified links are rejected (secure) but accepted (vuln).
+
+  A) Build and install variants
+  - Secure:
+    - Android Studio: select Build Variant `secureLinksDebug` and Run
+    - CLI: `./gradlew :app:installSecureLinksDebug`
+    - Package: `dev.jamescullimore.android_security_training.secure`
+  - Vulnerable:
+    - Android Studio: select Build Variant `vulnLinksDebug` and Run
+    - CLI: `./gradlew :app:installVulnLinksDebug`
+    - Package: `dev.jamescullimore.android_security_training.vuln`
+
+  B) Test a verified App Link (secure should accept)
+  - Command:
+    ```
+    adb shell am start -a android.intent.action.VIEW \
+      -d "https://lethalmaus.github.io/AndroidSecurityTraining/welcome?code=abc&state=123"
+    ```
+  - Expected (secure): DeepLinks screen shows validated=true; result "Accepted … (code redacted)".
+  - Expected (vuln): Also accepts because it’s https; uses looser checks.
+
+  C) Test an unverified/custom host (secure should reject, vuln accepts)
+  - Command:
+    ```
+    adb shell am start -a android.intent.action.VIEW \
+      -d "https://lab.example.com/welcome?code=abc&state=123"
+    ```
+  - Expected (secure): "Rejected: invalid scheme/host/path" and no navigation.
+  - Expected (vuln): Treats as acceptable and echoes parameters.
+
+  D) Toggle between URLs inside the app
+  - Open the app UI and use the "Switch to Verified/Unverified URL" button.
+  - Use "Simulate Incoming VIEW" and "Navigate Internally (Secure Path)" to compare behavior.
+
+  E) If App Links don’t auto‑verify
+  - Ensure the app that should handle links is the default: open the verified URL in Chrome and choose the app; if a chooser appears, long‑press to always open.
+  - Clear defaults if needed: Settings → Apps → "Open by default" → Clear.
+  - Check verification state (Android 12+): `adb shell pm get-app-links dev.jamescullimore.android_security_training.secure`
+  - Uninstall all variants to reset link handling:
+    ```
+    adb uninstall dev.jamescullimore.android_security_training
+    adb uninstall dev.jamescullimore.android_security_training.secure
+    adb uninstall dev.jamescullimore.android_security_training.vuln
+    ```
+  - Note: The provided assetlinks.json includes all three package IDs for convenience during demos.
+
 #### Best practices
   - Prefer verified app links (assetlinks.json) for https domains.
   - Validate schemes, hosts, and path prefixes explicitly; reject unexpected ones.
@@ -434,11 +480,67 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
 
 ### 6. Secure storage
 #### Where in code
-  - Secure: `app/src/secure/java/.../storage/SecureStorageHelper.kt`
-  - Vulnerable: `app/src/vuln/java/.../storage/VulnStorageHelper.kt`
-#### Lab guide
-  1) In vuln, write sensitive data to unencrypted/shared storage and read it from adb/files.
-  2) In secure, store secrets in Keystore or EncryptedSharedPreferences and demonstrate protected access.
+  - Activity UI: `app/src/storage/java/.../StorageActivity.kt`
+  - Secure helper: `app/src/secure/java/.../storage/SecureStorageHelper.kt`
+  - Vulnerable helper: `app/src/vuln/java/.../storage/VulnStorageHelper.kt`
+#### Lab guide (hands-on)
+  Goal: Compare plaintext vs encrypted storage and observe data on disk.
+
+  A) Build and install variants
+  - Secure:
+    - Android Studio: Build Variant `secureStorageDebug`
+    - CLI: `./gradlew :app:installSecureStorageDebug`
+    - Package: `dev.jamescullimore.android_security_training.secure`
+  - Vulnerable:
+    - Android Studio: Build Variant `vulnStorageDebug`
+    - CLI: `./gradlew :app:installVulnStorageDebug`
+    - Package: `dev.jamescullimore.android_security_training.vuln`
+
+  B) Preferences demo
+  - In the app, click:
+    - "Save Token (EncryptedSharedPreferences)" then "Load Token (Encrypted)" → value is stored securely; loaded value is partially redacted.
+    - "Save Token (Plain SharedPreferences)" then "Load Token (Plain)" → plaintext storage for contrast.
+  - Inspect on device/emulator (debug builds allow run-as):
+    ```
+    # Secure EncryptedSharedPreferences (ciphertext)
+    adb shell run-as dev.jamescullimore.android_security_training.secure \
+      ls files/ shared_prefs/
+    adb shell run-as dev.jamescullimore.android_security_training.secure \
+      cat shared_prefs/secure_prefs.xml  # keys/values appear encrypted
+
+    # Insecure plaintext SharedPreferences
+    adb shell run-as dev.jamescullimore.android_security_training.vuln \
+      cat shared_prefs/insecure_prefs.xml
+    ```
+
+  C) Files demo
+  - Click "Write Secure File (EncryptedFile)" then locate file path in the UI output.
+  - Also write the insecure file and read it back.
+  - Inspect:
+    ```
+    adb shell run-as dev.jamescullimore.android_security_training.secure \
+      ls files/ && hexdump -C files/secure.txt | head
+    adb shell run-as dev.jamescullimore.android_security_training.vuln \
+      cat cache/insecure.txt
+    ```
+
+  D) SQLite demo (plaintext DB for illustration)
+  - Click DB Put/Get/List/Delete to manipulate a small table.
+  - Inspect with sqlite3 (emulator has it in platform-tools images; if missing, pull the DB):
+    ```
+    adb shell run-as dev.jamescullimore.android_security_training.secure \
+      sqlite3 databases/tokens.db '.tables'
+    adb shell run-as dev.jamescullimore.android_security_training.secure \
+      sqlite3 databases/tokens.db 'select * from tokens;'
+    ```
+
+  E) Root awareness in storage demo
+  - Secure build guards certain write actions behind a root check (uses Root helper). On rooted devices the action returns a warning instead of writing secrets.
+
+  F) Tips
+  - Android Studio → Device Explorer lets you browse app data for debug builds.
+  - If run-as fails, ensure you are using a debug build with matching signature and that the app was launched once.
+
 #### Best practices
   - Use EncryptedFile/EncryptedSharedPreferences; prefer Keystore‑backed keys.
   - Never store plaintext credentials, tokens, or PII in world‑readable locations.
@@ -451,11 +553,41 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
 
 ### 7. Root/Jailbreak detection
 #### Where in code
-  - Secure: `app/src/secure/java/.../root/SecureRootHelper.kt`
-  - Vulnerable: `app/src/vuln/java/.../root/VulnRootHelper.kt`
-#### Lab guide
-  1) Use a rooted emulator/device and compare signals (su paths, Magisk traces, SELinux) between secure and vuln.
-  2) Show how root can weaken other defenses (e.g., user CA trust on some builds).
+  - Activity UI: `app/src/root/java/.../RootActivity.kt`
+  - Secure helper: `app/src/secure/java/.../root/SecureRootHelper.kt`
+  - Vulnerable helper: `app/src/vuln/java/.../root/VulnRootHelper.kt`
+#### Lab guide (hands-on)
+  Goal: Observe root signals and compare secure vs vuln behavior, including a bypass toggle in vuln.
+
+  A) Build and install variants
+  - Secure:
+    - Android Studio: Build Variant `secureRootDebug`
+    - CLI: `./gradlew :app:installSecureRootDebug`
+    - Package: `dev.jamescullimore.android_security_training.secure`
+  - Vulnerable:
+    - Android Studio: Build Variant `vulnRootDebug`
+    - CLI: `./gradlew :app:installVulnRootDebug`
+    - Package: `dev.jamescullimore.android_security_training.vuln`
+
+  B) Run checks
+  - Tap "Run Root Checks" to list signals (su paths, build tags, known packages, mounts, etc.).
+  - Tap "Simulate Block if Rooted" to see policy behavior.
+  - Tap "Toggle Bypass (vuln)" to simulate an insecure override (has effect only in vuln builds).
+  - Tap "Tamper Check" and "Play Integrity Status (placeholder)" to discuss attestation flows.
+
+  C) Try on a rooted emulator/device (optional)
+  - Example commands to surface signals:
+    ```
+    adb shell su -c 'id'
+    adb shell getenforce
+    adb shell mount | head -n 20
+    ```
+  - Expected: Secure build should report rooted=true on common signals; vulnerable build may allow bypass.
+
+  D) Discuss limitations
+  - Local checks are heuristics and can be bypassed (MagiskHide/LSPosed/Frida).
+  - Combine with server-side attestation (Play Integrity) and degrade gracefully.
+
 #### Best practices
   - Treat root detection as a risk signal, not a silver bullet; combine with server‑side checks.
   - Fail safely (e.g., reduce functionality) and avoid overly brittle heuristics.
