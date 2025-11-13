@@ -30,36 +30,45 @@ class VulnReDemoHelper : ReDemoHelper {
 
     override suspend fun tryDynamicDexLoad(context: Context, dexOrJarPath: String): String {
         return runCatching {
-            // Accept only a full path or the special keyword 'self'. Keep it simple.
-            val raw = dexOrJarPath.trim().trim('"', '\'')
-            val normalized = if (raw.startsWith("file://", ignoreCase = true)) {
-                Uri.parse(raw).path ?: raw
-            } else raw
+            // Interpret input as a simple file name located in the app's external files directory,
+            // except for the special keyword 'self' which loads the current APK.
+            val input = dexOrJarPath.trim().trim('"', '\'')
+            val isSelf = input.equals("self", ignoreCase = true)
 
-            val path = if (normalized.equals("self", ignoreCase = true)) context.packageCodePath else normalized
-
-            // Resolve the file and try common sdcard alias if initial lookup fails
-            var src = File(path)
-            if (!src.exists()) {
-                val alt = when {
-                    path.startsWith("/sdcard/") -> path.replaceFirst("/sdcard/", "/storage/emulated/0/")
-                    path.startsWith("/storage/emulated/0/") -> path.replaceFirst("/storage/emulated/0/", "/sdcard/")
-                    else -> null
-                }
-                if (alt != null) {
-                    val altFile = File(alt)
-                    if (altFile.exists()) src = altFile
-                }
+            val src: File = if (isSelf) {
+                File(context.packageCodePath)
+            } else {
+                val baseRoot = context.getExternalFilesDir(null) ?: context.filesDir
+                val nameOnly = File(input).name // guard against paths; keep only the last segment
+                File(baseRoot, nameOnly)
             }
 
             if (!src.exists()) return@runCatching "Dynamic load failed: File not found at ${src.absolutePath}"
             if (!src.isFile) return@runCatching "Dynamic load failed: Not a file: ${src.absolutePath}"
 
+            // If loading external dex/jar by name, copy it into internal code cache first
+            val loadFile: File = if (!isSelf) {
+                val nameOnly = src.name
+                val internalDex = File(context.codeCacheDir, nameOnly)
+                runCatching {
+                    src.inputStream().use { input ->
+                        internalDex.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }.onFailure { ioErr ->
+                    return@runCatching "Dynamic load failed: IOException while copying to internal cache: ${ioErr.message} (src=${src.absolutePath})"
+                }
+                internalDex.setReadable(true, true)
+                internalDex.setWritable(false, true)
+                internalDex
+            } else src
+
             val optDir = File(context.codeCacheDir, "dexopt").apply { mkdirs() }
-            val cl = DexClassLoader(src.absolutePath, optDir.absolutePath, null, context.classLoader)
+            val cl = DexClassLoader(loadFile.absolutePath, optDir.absolutePath, null, context.classLoader)
 
             // Self-load demo
-            if (normalized.equals("self", ignoreCase = true)) {
+            if (isSelf) {
                 val appBuildConfig = runCatching { cl.loadClass("dev.jamescullimore.android_security_training.BuildConfig") }.getOrNull()
                 if (appBuildConfig != null) {
                     val appIdField = runCatching { appBuildConfig.getField("APPLICATION_ID") }.getOrNull()

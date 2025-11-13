@@ -301,12 +301,13 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
    - Build a minimal class and convert to DEX:
      ```
      # Example workflow
-     jar cvf dynamic.jar dev/training/dynamic/Hello.class
+     javac --release 8 -d build_classes dev/training/dynamic/Hello.java
+     jar cvf dynamic.jar -C build_classes dev/training/dynamic/Hello.class
      d8 --output out/ dynamic.jar
      adb shell "mkdir -p /sdcard/Android/data/dev.jamescullimore.android_security_training.vuln/files"
      adb push out/classes.dex /sdcard/Android/data/dev.jamescullimore.android_security_training.vuln/files/dynamic.dex
      ```
-   - Use the vulnerable app UI to load `/sdcard/Android/data/dev.jamescullimore.android_security_training.vuln/files/dynamic.dex` and execute a method. Discuss risk: unvalidated external code execution.
+   - In the vulnerable app UI, enter just the file name `dynamic.dex` (do not paste a full path). The app will look for this file in its external files directory and then copy it into its internal code cache before loading via DexClassLoader. You can also enter `self` to attempt loading the app's own APK. Discuss risk: unvalidated external code execution.
 
 9) R8 / obfuscation comparison
    - Compare a debug APK vs. a release APK with `minifyEnabled = true`.
