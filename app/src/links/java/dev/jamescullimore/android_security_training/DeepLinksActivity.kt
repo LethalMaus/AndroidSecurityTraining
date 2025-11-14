@@ -1,7 +1,6 @@
 package dev.jamescullimore.android_security_training
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -28,28 +27,45 @@ import dev.jamescullimore.android_security_training.ui.theme.AndroidSecurityTrai
 import androidx.core.net.toUri
 
 class DeepLinksActivity : ComponentActivity() {
+    private val currentIntentState = mutableStateOf<Intent?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        currentIntentState.value = intent
         enableEdgeToEdge()
         setContent {
             AndroidSecurityTrainingTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    DeepLinksHome(modifier = Modifier.padding(innerPadding), initialIntent = intent)
+                    DeepLinksHome(
+                        modifier = Modifier.padding(innerPadding),
+                        currentIntent = currentIntentState.value
+                    )
                 }
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // When the activity is already on top (singleTop), new deep links arrive here
+        currentIntentState.value = intent
+    }
 }
 
 @Composable
-fun DeepLinksHome(modifier: Modifier = Modifier, initialIntent: Intent?) {
+fun DeepLinksHome(modifier: Modifier = Modifier, currentIntent: Intent?) {
     val context = LocalContext.current
     val helper: DeepLinkHelper = remember { provideDeepLinkHelper() }
-    var received by remember { mutableStateOf(helper.describeIncomingIntent(initialIntent)) }
+    var received by remember { mutableStateOf(helper.describeIncomingIntent(currentIntent)) }
     var uriText by remember { mutableStateOf("https://lab.example.com/welcome?code=abc&state=123") }
     val verifiedBase = "https://lethalmaus.github.io/AndroidSecurityTraining"
     val verifiedUrl = "$verifiedBase/welcome?code=abc&state=123"
     var result by remember { mutableStateOf("Deep Links demo: craft and send VIEW intents") }
+
+    // Update the displayed received-intent summary whenever a new intent arrives
+    LaunchedEffect(currentIntent) {
+        received = helper.describeIncomingIntent(currentIntent)
+    }
 
     Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
         Text(text = "Deep Links", style = MaterialTheme.typography.headlineSmall)
@@ -70,8 +86,10 @@ fun DeepLinksHome(modifier: Modifier = Modifier, initialIntent: Intent?) {
         Spacer(Modifier.height(4.dp))
         Button(onClick = {
             val test = Intent(Intent.ACTION_VIEW, uriText.toUri()).addCategory(Intent.CATEGORY_BROWSABLE)
-            result = helper.handleIncomingIntent(test)
-        }) { Text("Simulate Incoming VIEW") }
+            test.setClass(context, DeepLinksActivity::class.java)
+            context.startActivity(test)
+            result = "Sent VIEW intent"
+        }) { Text("Send VIEW Intent") }
         Spacer(Modifier.height(8.dp))
         Button(onClick = {
             result = helper.safeNavigateExample(context, uriText)

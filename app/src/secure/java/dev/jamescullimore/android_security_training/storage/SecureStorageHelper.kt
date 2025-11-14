@@ -3,11 +3,16 @@ package dev.jamescullimore.android_security_training.storage
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.util.Base64
+import android.util.Log
 import androidx.security.crypto.EncryptedFile
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import java.io.File
 import androidx.core.content.edit
+import java.security.SecureRandom
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 class SecureStorageHelper : StorageHelper {
 
@@ -25,6 +30,27 @@ class SecureStorageHelper : StorageHelper {
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
 
+    private fun logSecurityEvent(event: String) {
+        Log.w(TAG, "SECURITY: $event")
+    }
+
+    private fun getOrCreateHmacKey(context: Context): ByteArray {
+        val prefs = securePrefs(context)
+        val existing = prefs.getString(KEY_HMAC, null)
+        if (existing != null) return Base64.decode(existing, Base64.NO_WRAP)
+        val rnd = ByteArray(32)
+        SecureRandom().nextBytes(rnd)
+        prefs.edit { putString(KEY_HMAC, Base64.encodeToString(rnd, Base64.NO_WRAP)) }
+        return rnd
+    }
+
+    private fun hmac(key: ByteArray, data: String): String {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(key, "HmacSHA256"))
+        val out = mac.doFinal(data.toByteArray())
+        return Base64.encodeToString(out, Base64.NO_WRAP)
+    }
+
     // --- Preferences ---
     override suspend fun saveTokenSecure(context: Context, token: String): String {
         val prefs = securePrefs(context)
@@ -33,9 +59,15 @@ class SecureStorageHelper : StorageHelper {
     }
 
     override suspend fun loadTokenSecure(context: Context): String {
-        val token = securePrefs(context).getString(KEY_TOKEN, null)
-        return token?.let { "Loaded secure token: ${it.take(4)}… (redacted)" }
-            ?: "No secure token saved"
+        return try {
+            val token = securePrefs(context).getString(KEY_TOKEN, null)
+            token?.let { "Loaded secure token: ${it.take(4)}… (redacted)" } ?: "No secure token saved"
+        } catch (t: Throwable) {
+            // If prefs file was tampered/corrupted, clear and force re-auth
+            runCatching { securePrefs(context).edit { clear() } }
+            logSecurityEvent("EncryptedSharedPreferences read failure (possible tamper): ${t.javaClass.simpleName}: ${t.message}")
+            "[SECURE] Secure prefs appear tampered/corrupted. Cleared. Please re-authenticate."
+        }
     }
 
     override suspend fun saveTokenInsecure(context: Context, token: String): String {
@@ -80,19 +112,27 @@ class SecureStorageHelper : StorageHelper {
         }
     }
 
-    // --- SQLite (plaintext demo) ---
+    // --- SQLite (plaintext demo with integrity MAC) ---
     override suspend fun dbPut(context: Context, key: String, value: String): String {
         val db = TokensDb(context).writableDatabase
-        db.execSQL("INSERT OR REPLACE INTO $TABLE (k, v) VALUES (?, ?)", arrayOf(key, value))
+        val mac = hmac(getOrCreateHmacKey(context), "$key|$value")
+        db.execSQL("INSERT OR REPLACE INTO $TABLE (k, v, mac) VALUES (?, ?, ?)", arrayOf(key, value, mac))
         return "DB: upserted ($key -> ${value.take(4)}… ) into ${dbPath(context)}"
     }
 
     override suspend fun dbGet(context: Context, key: String): String {
         val db = TokensDb(context).readableDatabase
-        db.rawQuery("SELECT v FROM $TABLE WHERE k = ?", arrayOf(key)).use { c ->
+        db.rawQuery("SELECT v, mac FROM $TABLE WHERE k = ?", arrayOf(key)).use { c ->
             return if (c.moveToFirst()) {
                 val v = c.getString(0)
-                "DB: got value for $key: ${v}"
+                val mac = c.getString(1)
+                val expect = hmac(getOrCreateHmacKey(context), "$key|$v")
+                return if (mac == expect) {
+                    "DB: got value for $key: ${v}"
+                } else {
+                    logSecurityEvent("DB tamper detected for key='$key' (MAC mismatch)")
+                    "[SECURE] DB record for '$key' appears tampered. Please re-authenticate."
+                }
             } else {
                 "DB: no row for key=$key"
             }
@@ -102,9 +142,19 @@ class SecureStorageHelper : StorageHelper {
     override suspend fun dbList(context: Context): String {
         val db = TokensDb(context).readableDatabase
         val sb = StringBuilder()
-        db.rawQuery("SELECT k, v FROM $TABLE ORDER BY k", null).use { c ->
+        db.rawQuery("SELECT k, v, mac FROM $TABLE ORDER BY k", null).use { c ->
             while (c.moveToNext()) {
-                sb.append(c.getString(0)).append(" -> ").append(c.getString(1)).append('\n')
+                val k = c.getString(0)
+                val v = c.getString(1)
+                val mac = c.getString(2)
+                val expect = hmac(getOrCreateHmacKey(context), "$k|$v")
+                if (mac == expect) {
+                    sb.append(k).append(" -> ").append(v)
+                } else {
+                    logSecurityEvent("DB tamper detected for key='$k' during list (MAC mismatch or missing)")
+                    sb.append(k).append(" -> ").append("<tampered>")
+                }
+                sb.append('\n')
             }
         }
         val out = sb.toString().ifBlank { "<empty>" }
@@ -119,17 +169,22 @@ class SecureStorageHelper : StorageHelper {
 
     private fun dbPath(context: Context): String = context.getDatabasePath(DB_NAME).absolutePath
 
-    private class TokensDb(ctx: Context) : SQLiteOpenHelper(ctx, DB_NAME, null, 1) {
+    private class TokensDb(private val ctx: Context) : SQLiteOpenHelper(ctx, DB_NAME, null, 2) {
         override fun onCreate(db: SQLiteDatabase) {
-            db.execSQL("CREATE TABLE IF NOT EXISTS $TABLE (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS $TABLE (k TEXT PRIMARY KEY, v TEXT NOT NULL, mac TEXT)")
         }
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            // No-op for demo
+            if (oldVersion < 2) {
+                // Add MAC column if upgrading from older schema. We don't backfill; old rows will be flagged and require re-auth/write.
+                try { db.execSQL("ALTER TABLE $TABLE ADD COLUMN mac TEXT") } catch (_: Throwable) { /* column may already exist */ }
+            }
         }
     }
 
     companion object {
+        private const val TAG = "SecureStorage"
         private const val KEY_TOKEN = "token"
+        private const val KEY_HMAC = "hmac_key"
         private const val DB_NAME = "tokens.db"
         private const val TABLE = "tokens"
     }

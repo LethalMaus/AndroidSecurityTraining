@@ -6,7 +6,7 @@ This README is concise but complete: purpose, prerequisites, build variants, how
 
 ## Table of contents
 - [Purpose and scope](#purpose-and-scope)
-- [Prerequisites (tools) and before‑you‑start](#prerequisites-tools-and-before-you-start-steps)
+- [Prerequisites (tools) and before‑you‑start](#prerequisites-tools-and-beforeyoustart-steps)
 - [Quick start](#quick-start)
 - [MITM proxy quick setup (mitmproxy + emulator)](#mitm-proxy-quick-setup-mitmproxy--emulator)
 - [Build variants (how this project is organized)](#build-variants-how-this-project-is-organized)
@@ -19,8 +19,9 @@ This README is concise but complete: purpose, prerequisites, build variants, how
   - [6. Secure storage](#6-secure-storage)
   - [7. Root/Jailbreak detection](#7-rootjailbreak-detection)
   - [8. WebView & exported components](#8-webview--exported-components)
-  - [9. Multi‑user/AAOS considerations](#9-multi-useraaos-considerations)
+  - [9. Multi‑user/AAOS considerations](#9-multiuseraaos-considerations)
   - [10. Risk modeling & dangerous defaults](#10-risk-modeling--dangerous-defaults)
+- [Frida](#frida)
 - [Getting a rooted emulator](#getting-a-rooted-emulator-for-certain-labs)
 - [Troubleshooting](#troubleshooting)
 
@@ -33,9 +34,13 @@ This README is concise but complete: purpose, prerequisites, build variants, how
 - Android Studio (latest stable) with Android SDK and emulator images installed.
 - Java 11 toolchain (Gradle wrapper config uses JDK 11 compatibility).
 - A device or emulator. For interception/root labs, prefer an emulator you control (see rooted emulator section).
-- Optional but recommended for network labs:
+- Optional but recommended for labs:
   - mitmproxy, Burp Suite, or OWASP ZAP
   - Wireshark or tcpdump
+  - jadx, jadx‐gui and apktool installed
+  - DB Browser for SQLite (to inspect pulled SQLite .db files)
+  - (optional) [Frida](#frida) 
+  - sqlite3 CLI (alternative) — download from https://www.sqlite.org/download.html
 - Before you start:
   1) Clone this repo and open it in Android Studio.
   2) Let Gradle sync and index completely.
@@ -469,6 +474,49 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
     ```
   - Note: The provided assetlinks.json includes all three package IDs for convenience during demos.
 
+#### Vulnerable custom-scheme parsing demo (why this is dangerous)
+- Goal: Observe how a naive prefix check on a non-canonicalized path can be abused.
+- Build: vulnLinksDebug (package: dev.jamescullimore.android_security_training.vuln)
+- Activity: DeepLinksActivity (launcher for the links topic)
+
+A) Send a benign custom-scheme URL (accepts a token)
+```
+adb shell am start -a android.intent.action.VIEW \
+  -d "ast://dev.jamescullimore/AndroidSecurityTraining/open/?token=abc123"
+```
+Expected:
+- App opens the Deep Links screen.
+- "Received Intent" shows values like:
+  - path=/AndroidSecurityTraining/open/
+  - canonicalPath=/AndroidSecurityTraining/open
+  - naiveAccept(prefix '/AndroidSecurityTraining/open')=true
+  - params: token=abc123
+
+B) Send a canonicalized malicious URL using .. (path traversal/confused routing)
+```
+adb shell am start -a android.intent.action.VIEW \
+  -d "ast://dev.jamescullimore/AndroidSecurityTraining/open/../private/secret"
+```
+Expected (vulnerable behavior):
+- App still "accepts" because it checks only that the RAW path starts with /AndroidSecurityTraining/open.
+- UI shows:
+  - path=/AndroidSecurityTraining/open/../private/secret
+  - canonicalPath=/AndroidSecurityTraining/private/secret
+  - naiveAccept(prefix '/AndroidSecurityTraining/open')=true
+
+Why this is dangerous
+- The decision uses a naive prefix check without canonicalizing dot segments (.., .). An attacker can craft a path that appears to start with an allowed prefix but resolves to a different route when canonicalized.
+- Impact examples:
+  - Route confusion: reach internal/private handlers (e.g., /private/secret) gated behind an intended /open prefix.
+  - Policy bypass: trigger actions or expose data mapped to unintended paths.
+  - Data trust: the vulnerable helper also echoes untrusted parameters (e.g., token) which can aid phishing or log injection.
+
+How to fix (secure approach)
+- Always normalize/canonicalize the path before validation, then validate against a strict allowlist.
+- Validate scheme, host, and path prefixes explicitly; reject anything unexpected.
+- Prefer verified App Links for https domains and avoid trusting custom schemes for sensitive flows.
+- Don’t echo secrets back to logs/UI; treat deep link params as untrusted input.
+
 #### Best practices
   - Prefer verified app links (assetlinks.json) for https domains.
   - Validate schemes, hosts, and path prefixes explicitly; reject unexpected ones.
@@ -534,6 +582,7 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
     adb shell run-as dev.jamescullimore.android_security_training.secure \
       sqlite3 databases/tokens.db 'select * from tokens;'
     ```
+  - If you pull the DB to your host, open it with a desktop viewer such as DB Browser for SQLite, or use the sqlite3 CLI from https://www.sqlite.org/download.html.
 
   E) Root awareness in storage demo
   - Secure build guards certain write actions behind a root check (uses Root helper). On rooted devices the action returns a warning instead of writing secrets.
@@ -553,6 +602,7 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
   - MASVS‑STORAGE: https://mas.owasp.org/MASVS/
 
 ### 7. Root/Jailbreak detection
+
 #### Where in code
   - Activity UI: `app/src/root/java/.../RootActivity.kt`
   - Secure helper: `app/src/secure/java/.../root/SecureRootHelper.kt`
@@ -589,11 +639,23 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
   - Local checks are heuristics and can be bypassed (MagiskHide/LSPosed/Frida).
   - Combine with server-side attestation (Play Integrity) and degrade gracefully.
 
+E) Emulator note: Google APIs images vs real root
+- Many Google APIs emulator images can run adbd as root (so `adb shell su 0 id` works), but do not grant app processes permission to execute `su`.
+- Symptoms you may see in this lab:
+  - `which su` in `adb shell` returns a path (e.g., `/system/xbin/su`), but the app’s `can execute su` signal fails with "permission denied".
+  - `su binary present` and `su in PATH` show true, yet elevation attempts fail.
+- Why: The emulator’s root is limited to the adb daemon; normal app UIDs cannot spawn a root shell. This is different from a truly rooted environment (e.g., Magisk/KernelSU), where a superuser manager can grant per-app root.
+- What to do for the demo:
+  1) Use a rooted image that supports app-level su (e.g., Magisk/KernelSU rooted emulator, Genymotion rooted, or a rooted physical device).
+  2) If using Magisk/KernelSU, open the manager app and explicitly allow root for the app package (`dev.jamescullimore.android_security_training.secure` or `.vuln`).
+  3) On standard Google APIs emulators, expect signals indicating an emulator and possibly "adbd root only"; use the lab to discuss limitations.
+
 #### Best practices
   - Treat root detection as a risk signal, not a silver bullet; combine with server‑side checks.
   - Fail safely (e.g., reduce functionality) and avoid overly brittle heuristics.
   - Don’t block developer/userdebug builds in internal testing environments without escape hatches.
 #### Extra reading
+  - https://www.indusface.com/learning/how-to-implement-root-detection-in-android-applications/
   - Android security overview: https://developer.android.com/privacy-and-security
   - Play Integrity API: https://developer.android.com/google/play/integrity
   - SafetyNet Attestation (legacy): https://developer.android.com/training/safetynet/attestation
@@ -695,6 +757,43 @@ Steps: To install and use an emulator image that can run as root:
 - Finish creating your new AVD.
 - Tip: Start the AVD Name with the API level number so the list of Virtual Devices will sort by API level.
 - Launch your new AVD. (You can click the green "play" triangle in the AVD window.)
+
+## Frida
+
+- Install Frida: https://frida.re/docs/installation/
+- Set up for Android (device/emulator and frida-server): https://frida.re/docs/android/
+- Example scripts for this lab are in the `frida/` folder of this repo.
+
+### Quick start (attach/spawn)
+- List device processes (verify connection):
+  ```
+  frida-ps -U
+  ```
+- Spawn the secure build with a script (example: hook secure storage):
+  ```
+  frida -U -f dev.jamescullimore.android_security_training.secure -l frida/hook_secure_storage.js
+  ```
+  - Tip: add `--no-pause` to let the app run immediately after spawn.
+- Attach to a running app instead of spawning (alternative):
+  ```
+  frida -U -n dev.jamescullimore.android_security_training.secure -l frida/hook_secure_storage.js
+  ```
+- Trace common libc calls (example: `open`) for the secure build:
+  ```
+  frida-trace -U -i open -N dev.jamescullimore.android_security_training.secure
+  ```
+  - Alternate syntax (attach by name on some versions):
+    ```
+    frida-trace -U -i open -n dev.jamescullimore.android_security_training.secure
+    ```
+
+### Notes
+- Package IDs:
+  - Secure variants: `dev.jamescullimore.android_security_training.secure`
+  - Vulnerable variants: `dev.jamescullimore.android_security_training.vuln`
+- Scripts live in the `frida/` directory (for example: `frida/hook_secure_storage.js`).
+- If you don’t see classes/methods right after spawning, use `--no-pause` or interact with the target screen so code paths load.
+- On Google APIs emulators, Frida works fine for app‑level hooking even if `adbd` runs as root but the app cannot `su` — this is expected (see Root section for details).
 
 ## Troubleshooting
 - Build with the Gradle wrapper from Android Studio. If secure pinning fails, check device time and that pins match the current server keys.
