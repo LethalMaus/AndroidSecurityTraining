@@ -122,9 +122,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.logging.interceptor)
-
-    // Root detection helper library (used in secure root checks)
-    implementation("com.scottyab:rootbeer-lib:0.1.0")
+    implementation(libs.rootbeer.lib)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
