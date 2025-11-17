@@ -684,8 +684,66 @@ E) Emulator note: Google APIs images vs real root
   - Topic activity: `app/src/users/java/.../MultiUserActivity.kt`
   - Secure helper: `app/src/secure/java/.../multiuser/SecureMultiUserHelper.kt`
 #### Lab guide
-  1) Explore how user profiles affect storage and component visibility.
-  2) Compare secure vs vuln behavior around user isolation and exported components.
+  Goal: On a rooted device, create a second user, install and run the vulnerable build under that user to create a token file, then switch back to the primary user and attempt a cross‑user read using the app’s root‑only demo helpers.
+
+  Prereqs
+  - Use a rooted device.
+  - Build the vulnerable users variant: `vulnUsersDebug`.
+
+  A) Build and install vuln variant for the primary user (user 0)
+  - Android Studio: Build Variant `vulnUsersDebug` and Run
+  - CLI:
+    ```
+    ./gradlew :app:installVulnUsersDebug
+    ```
+  - Package name (vuln): `dev.jamescullimore.android_security_training.vuln`
+  - Launcher activity: `dev.jamescullimore.android_security_training.MultiUserActivity`
+
+  B) Create a second user (e.g., "LabUser") and note its userId
+  ```
+  adb root
+  adb shell pm create-user "LabUser"
+  adb shell pm list users
+  ```
+  - From the list, note the new `userId` (commonly 10).
+
+  C) Switch to the new user and make the vuln app available there
+  ```
+  # Replace 10 with your new userId
+  adb shell am switch-user 10
+  # If the app is already installed for user 0, this makes it available to user 10
+  adb shell pm install-existing --user 10 dev.jamescullimore.android_security_training.vuln
+  ```
+  If `install-existing` isn’t available on your image, install the APK directly for that user:
+  ```
+  ./gradlew :app:assembleVulnUsersDebug
+  adb install --user 10 app/build/outputs/apk/vuln/users/debug/app-vuln-users-debug.apk
+  ```
+
+  D) Launch the app under user 10 and create the token file via the UI
+  ```
+  adb shell am start --user 10 \
+    -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.MultiUserActivity
+  ```
+  - In the Users screen, tap:
+    - "Save Per‑User Token (secure)" (in the vuln build this intentionally writes a plaintext token to `shared_prefs/tokens_plain.xml`).
+    - Optionally, tap "List Users (best‑effort)" to verify the user list (root‑only demo).
+
+  E) Switch back to the primary user (user 0)
+  ```
+  adb shell am switch-user 0
+  ```
+
+  F) Attempt to read user 10’s token file from user 0 using the app
+  - Launch the vuln app (user 0) and open the Users screen.
+  - In the "Target userId" field, enter the other user’s id (e.g., 10).
+  - Tap "Try Cross‑User Read".
+  - Expected on a rooted emulator (vuln build): You should see `[VULN][root-only demo]` output with a snippet of `/data/user/10/…/shared_prefs/tokens_plain.xml` if present. If not found, the app will report a clear not‑found message.
+
+  Notes
+  - These cross‑user operations use `su` and are intentionally provided only in the vulnerable flavor for teaching. The secure flavor shows the correct denial/limitations.
+  - On some images, you may need to manually interact with the app under the secondary user once before the prefs path exists.
+
 #### Best practices
   - Assume shared devices and multiple profiles (work, guest, automotive) — scope data to the active user.
   - Avoid cross‑profile leaks; respect enterprise restrictions and user separation.

@@ -6,9 +6,30 @@ import android.os.Environment
 import android.os.Process
 import android.provider.Settings
 import java.io.File
+import java.io.InputStreamReader
 
 // Intentionally insecure patterns for training ONLY
 class VulnMultiUserHelper : MultiUserHelper {
+
+    private fun suExec(cmd: String, timeoutMs: Long = 4000): Pair<Int, String> {
+        return try {
+            val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+            val t = Thread {
+                // Drain error stream to avoid blocking; we ignore content for brevity
+                try { p.errorStream.bufferedReader().readText() } catch (_: Throwable) {}
+            }
+            t.isDaemon = true
+            t.start()
+            val out = InputStreamReader(p.inputStream).readText()
+            if (!p.waitFor(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                try { p.destroyForcibly() } catch (_: Throwable) {}
+                return -1 to "[root-demo] Command timed out: $cmd"
+            }
+            p.exitValue() to out.trim()
+        } catch (t: Throwable) {
+            -2 to "[root-demo] su failed: ${t.javaClass.simpleName}: ${t.message}"
+        }
+    }
 
     override fun getRuntimeInfo(context: Context): String {
         val uid = Process.myUid()
@@ -25,8 +46,13 @@ class VulnMultiUserHelper : MultiUserHelper {
     }
 
     override fun listUsersBestEffort(context: Context): String {
-        // Pretend to list users; in reality, we cannot without privileges. Show misleading behavior.
-        return "[VULN] Attempted to list users without privileges — returned none. (Attackers may assume single-user and mis-scope data.)"
+        // On rooted device, list device users via shell
+        val (code1, out1) = suExec("cmd user list || pm list users")
+        return if (code1 == 0 && out1.isNotBlank()) {
+            "[VULN][root-only demo] cmd user list:\n$out1"
+        } else {
+            "[VULN] Could not list users via root shell: exit=$code1 output='$out1'\nTip: Use a non-Google Play emulator and run adb root."
+        }
     }
 
     override fun savePerUserToken(context: Context, token: String): String {
@@ -56,13 +82,17 @@ class VulnMultiUserHelper : MultiUserHelper {
     }
 
     override fun tryCrossUserRead(context: Context, targetUserId: Int): String {
-        // Naively attempt to read another user's app-internal file path (will fail or read current user only)
-        val path = "/data/user/$targetUserId/${context.packageName}/shared_prefs/tokens_plain.xml"
-        return try {
-            val text = File(path).takeIf { it.exists() }?.readText()
-            if (text != null) "[VULN] Attempted direct path read of other user: found content length=${text.length} (this should not be possible on secure devices)" else "[VULN] File not found for other user (as expected)"
-        } catch (t: Throwable) {
-            "[VULN] Cross-user file read failed: ${t::class.java.simpleName}: ${t.message}"
+        // Root-only teaching aid: attempt to read another user's SharedPreferences via shell
+        val pkg = context.packageName
+        val path = "/data/user/$targetUserId/$pkg/shared_prefs/tokens_plain.xml"
+        val (code, out) = suExec("cat $path || echo __NO_FILE__")
+        return when {
+            code == 0 && out != "__NO_FILE__" && out.isNotBlank() -> {
+                val snippet = if (out.length > 600) out.take(600) + "\n…(truncated)…" else out
+                "[VULN][root-only demo] Cross-user read of $path:\n$snippet"
+            }
+            code == 0 && out == "__NO_FILE__" -> "[VULN][root-only demo] Target file not found for user $targetUserId: $path"
+            else -> "[VULN] Root shell failed to read $path (exit=$code): $out"
         }
     }
 }
