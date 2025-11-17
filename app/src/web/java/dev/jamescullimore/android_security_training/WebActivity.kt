@@ -79,8 +79,12 @@ class WebActivity : ComponentActivity() {
                             }) { Text("Load Trusted URL (https)") }
 
                             Button(onClick = {
+                                webViewState.value?.let { output.value = helper.loadUntrustedHttp(ctx, it) }
+                            }) { Text("Load Untrusted HTTP (cleartext)") }
+
+                            Button(onClick = {
                                 webViewState.value?.let { output.value = helper.loadUntrusted(ctx, it) }
-                            }) { Text("Load Untrusted URL (http/file)") }
+                            }) { Text("Load Untrusted FILE (path traversal)") }
 
                             Button(onClick = {
                                 webViewState.value?.let { output.value = helper.runDemoJs(ctx, it) }

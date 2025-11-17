@@ -42,5 +42,16 @@
                 <action android:name="dev.jamescullimore.android_security_training.web.LEAK_PI" />
             </intent-filter>
         </receiver>
+
+        <!-- In vuln builds, expose the clear-data receiver for adb demos -->
+        <receiver
+            android:name=".ClearDataReceiver"
+            tools:replace="android:exported,android:permission"
+            android:exported="true"
+            android:permission="">
+            <intent-filter>
+                <action android:name="dev.jamescullimore.android_security_training.ACTION_CLEAR_DATA" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

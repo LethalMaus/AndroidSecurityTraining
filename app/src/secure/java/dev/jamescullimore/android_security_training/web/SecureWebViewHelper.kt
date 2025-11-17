@@ -57,10 +57,24 @@ class SecureWebViewHelper : WebViewHelper {
     }
 
     override fun loadUntrusted(context: Context, webView: WebView): String {
-        // In secure builds, demonstrate blocking by attempting to load http URL which should be blocked by client.
+        // Attempt a file traversal like the vuln build, but our settings and allowlist should block it
+        try {
+            val secretFile = java.io.File(context.filesDir, "secret.txt")
+            if (!secretFile.exists()) {
+                secretFile.writeText("TOP-SECRET (secure build demo) " + System.currentTimeMillis())
+            }
+        } catch (_: Throwable) { }
+        val pkg = context.packageName
+        val url = "file:///android_asset/../../data/data/" + pkg + "/files/secret.txt"
+        webView.loadUrl(url)
+        return "[SECURE] Attempted file traversal load (blocked by fileAccess=false and URL allowlist): $url"
+    }
+
+    override fun loadUntrustedHttp(context: Context, webView: WebView): String {
+        // Demonstrate that cleartext/mixed content is blocked by policy
         val url = "http://neverssl.com/"
         webView.loadUrl(url)
-        return "Attempted to load untrusted $url (should be blocked by shouldOverrideUrlLoading)"
+        return "[SECURE] Attempted cleartext HTTP load (should be blocked): $url"
     }
 
     override fun runDemoJs(context: Context, webView: WebView): String {

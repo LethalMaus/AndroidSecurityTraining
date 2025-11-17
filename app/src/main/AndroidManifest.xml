@@ -52,6 +52,16 @@
                 <action android:name="dev.jamescullimore.android_security_training.web.DEMO" />
             </intent-filter>
         </receiver>
+
+        <!-- Clear-data receiver: secure defaults (not exported, signature permission) -->
+        <receiver
+            android:name=".ClearDataReceiver"
+            android:exported="false"
+            android:permission="dev.jamescullimore.android_security_training.permission.DEMO_SIGNATURE">
+            <intent-filter>
+                <action android:name="dev.jamescullimore.android_security_training.ACTION_CLEAR_DATA" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

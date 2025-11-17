@@ -13,7 +13,11 @@ interface WebViewHelper {
 
     fun configure(context: Context, webView: WebView): String
     fun loadTrusted(context: Context, webView: WebView): String
-    fun loadUntrusted(context: Context, webView: WebView): String
+
+    // New: explicit untrusted loaders separated for demo clarity
+    fun loadUntrustedHttp(context: Context, webView: WebView): String
+    fun loadUntrusted(context: Context, webView: WebView): String // file traversal demo (legacy name kept)
+
     fun runDemoJs(context: Context, webView: WebView): String
     fun sendInternalBroadcast(context: Context): String
     fun exposePendingIntent(context: Context): String

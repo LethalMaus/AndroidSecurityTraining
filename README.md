@@ -666,13 +666,63 @@ E) Emulator note: Google APIs images vs real root
   - Topic activity: `app/src/web/java/.../WebActivity.kt`
   - Secure helper/receiver: `app/src/secure/java/.../web/SecureWebViewHelper.kt`
   - Vulnerable helper: `app/src/vuln/java/.../web/VulnWebViewHelper.kt`
-#### Lab guide
-  1) In vuln, enable JavaScript bridges and mixed content; exploit token leakage or XSS navigation.
-  2) In secure, enforce strict allowlists, disable JS unless required, and keep components non‑exported.
+  - Demo ContentProvider (class): `app/src/main/java/.../perm/DemoProvider.kt` (authority overridden in vuln manifest)
+  - Vulnerable manifest override: `app/src/vuln/AndroidManifest.xml` (exported provider authority `com.example.demo.provider`)
+
+#### Lab guide (hands-on)
+A) Exported ContentProvider attack (adb)
+- Build and run `vulnPermDebug` or any vuln topic (provider is registered in the vuln manifest).
+- Query the exported provider from the shell:
+  ```
+  adb shell content query --uri content://dev.jamescullimore.android_security_training.vuln.demo/users
+  ```
+  Expected (vuln): a row like `hello from DemoProvider: /users` because the provider is exported with no permission checks.
+
+- Compare with secure builds: the same provider is non-exported and gated by a signature permission; external queries should fail.
+
+B) WebView path traversal from file scheme (vuln)
+- Build and run `vulnWebDebug` and open the WebView screen.
+- Tap "Configure WebView" (enables JS, file://, mixed content, etc. in vuln).
+- Tap "Load Untrusted HTTP (cleartext)" to demonstrate mixed content and lack of validation (loads http://neverssl.com/).
+- Tap "Load Untrusted FILE (path traversal)" to execute a traversal load. The vuln helper prepares a secret at:
+  - `/data/data/<pkg>/files/secret.txt` (created on first run)
+- It then calls:
+  ```
+  webView.loadUrl("file:///android_asset/../../data/data/<pkg>/files/secret.txt")
+  ```
+  Notes:
+  - Modern WebView implementations may block this traversal, but the code and attempt are visible for discussion and testing on older images.
+  - Replace `<pkg>` with the running package, e.g., `dev.jamescullimore.android_security_training.vuln`.
+
+C) Resetting app data via broadcast (lab helper)
+For quick lab resets, the app includes a BroadcastReceiver that can clear local data.
+- Action: `dev.jamescullimore.android_security_training.ACTION_CLEAR_DATA`
+- Extras:
+  - `what` (optional): one of `prefs`, `files`, `cache`, `db`/`databases`, or omit for `all`.
+
+Usage examples (vulnerable flavors expose this receiver; secure flavors keep it non-exported and gated by a signature permission):
+- Vulnerable build (any topic, package suffix `.vuln`):
+  ```
+  # Clear everything (prefs, files, cache, databases)
+  adb shell am broadcast -a dev.jamescullimore.android_security_training.ACTION_CLEAR_DATA \
+    -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.ClearDataReceiver
+
+  # Clear only SharedPreferences
+  adb shell am broadcast -a dev.jamescullimore.android_security_training.ACTION_CLEAR_DATA --es what prefs \
+    -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.ClearDataReceiver
+  ```
+- Secure build: The receiver is not exported and requires the custom signature permission, so external adb broadcasts will be ignored/denied by design. Triggering is possible only from inside the app or a same-signature test app.
+
+D) Other vuln WebView demos
+- Run JS demo to exfiltrate a token from `addJavascriptInterface` and observe the broadcast.
+- Expose/trigger a mutable PendingIntent via broadcast leak.
+
 #### Best practices
   - Disable JS, file access, and mixed content by default.
   - Use a safe URL loading policy and validate origins.
   - Don’t expose WebView JS interfaces to untrusted content; prefer postMessage‑style bridges with strict validation.
+  - Avoid exporting components unless required; protect with signature permissions when needed.
+
 #### Extra reading
   - WebView security tips: https://developer.android.com/guide/webapps/webview#security
   - Avoiding intent/component leaks: https://developer.android.com/guide/components/intents-filters#Security
@@ -852,6 +902,31 @@ Steps: To install and use an emulator image that can run as root:
 - Scripts live in the `frida/` directory (for example: `frida/hook_secure_storage.js`).
 - If you don’t see classes/methods right after spawning, use `--no-pause` or interact with the target screen so code paths load.
 - On Google APIs emulators, Frida works fine for app‑level hooking even if `adbd` runs as root but the app cannot `su` — this is expected (see Root section for details).
+
+## Resetting app data via broadcast (lab helper)
+For quick lab resets, the app includes a BroadcastReceiver that can clear local data.
+
+- Action: `dev.training.ACTION_CLEAR_DATA`
+- Extras:
+  - `what` (optional): one of `prefs`, `files`, `cache`, `db`/`databases`, or omit for `all`.
+
+Usage examples (vulnerable flavors expose this receiver; secure flavors keep it non-exported and gated by a signature permission):
+
+- Vulnerable build (any topic, package suffix `.vuln`):
+  ```
+  # Clear everything (prefs, files, cache, databases)
+  adb shell am broadcast -a dev.training.ACTION_CLEAR_DATA \
+    -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.ClearDataReceiver
+
+  # Clear only SharedPreferences
+  adb shell am broadcast -a dev.training.ACTION_CLEAR_DATA --es what prefs \
+    -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.ClearDataReceiver
+  ```
+- Secure build: The receiver is not exported and requires the custom signature permission, so external adb broadcasts will be ignored/denied by design. Triggering is possible only from inside the app or a same-signature test app.
+
+Notes
+- You will see a Toast and log line like `ACTION_CLEAR_DATA executed: Cleared X area(s)` when it runs.
+- This helper is intended for training and demo environments only.
 
 ## Troubleshooting
 - Build with the Gradle wrapper from Android Studio. If secure pinning fails, check device time and that pins match the current server keys.

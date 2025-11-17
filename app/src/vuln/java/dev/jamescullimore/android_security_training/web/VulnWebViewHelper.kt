@@ -3,8 +3,6 @@ package dev.jamescullimore.android_security_training.web
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.os.Build
 import android.util.Log
 import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
@@ -57,6 +55,23 @@ class VulnWebViewHelper : WebViewHelper {
     }
 
     override fun loadUntrusted(context: Context, webView: WebView): String {
+        // Prepare a secret file inside internal storage to demonstrate path traversal from the asset scheme
+        try {
+            val secretFile = java.io.File(context.filesDir, "secret.txt")
+            if (!secretFile.exists()) {
+                secretFile.writeText("TOP-SECRET: token=lab-" + System.currentTimeMillis())
+            }
+        } catch (t: Throwable) {
+            android.util.Log.w("WebDemo", "Failed to create secret.txt in files dir", t)
+        }
+        val pkg = context.packageName
+        // Attempt WebView traversal from the asset sandbox to app's internal files
+        val url = "file:///android_asset/../../data/data/" + pkg + "/files/secret.txt"
+        webView.loadUrl(url)
+        return "[VULN] Attempted file traversal load: $url\nNote: On newer WebView versions, this may be blocked; still useful as a teaching example."
+    }
+
+    override fun loadUntrustedHttp(context: Context, webView: WebView): String {
         // Use cleartext HTTP to demonstrate mixed content and lack of validation; avoids file permission issues
         val url = "http://neverssl.com/"
         webView.loadUrl(url)
