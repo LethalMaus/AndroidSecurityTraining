@@ -46,21 +46,31 @@ class VulnStorageHelper : StorageHelper {
     }
 
     override suspend fun writeInsecureFile(context: Context, filename: String, content: String): String {
-        val publicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        publicDir.mkdirs()
-        val file = File(publicDir, filename)
-        // This location may be readable by other apps via user grants / media scans
-        file.writeText(content)
-        return "Wrote INSECURE plaintext file in public Downloads: ${file.absolutePath}"
+        // Use app-specific external Downloads directory to avoid scoped storage EACCES on modern Android
+        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: return "External storage not available (getExternalFilesDir returned null)"
+        dir.mkdirs()
+        val file = File(dir, filename)
+        return try {
+            file.writeText(content)
+            "Wrote INSECURE plaintext file in app-specific external Downloads: ${file.absolutePath}"
+        } catch (t: Throwable) {
+            "Failed to write insecure file: ${t.javaClass.simpleName}: ${t.message}"
+        }
     }
 
     override suspend fun readInsecureFile(context: Context, filename: String): String {
-        val publicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val file = File(publicDir, filename)
-        return if (file.exists()) {
-            "Read INSECURE public file content: ${file.readText()}"
-        } else {
-            "Insecure public file not found at: ${file.absolutePath}"
+        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: return "External storage not available (getExternalFilesDir returned null)"
+        val file = File(dir, filename)
+        return try {
+            if (file.exists()) {
+                "Read INSECURE file content: ${file.readText()}"
+            } else {
+                "Insecure file not found at: ${file.absolutePath}"
+            }
+        } catch (t: Throwable) {
+            "Failed to read insecure file: ${t.javaClass.simpleName}: ${t.message}"
         }
     }
 
