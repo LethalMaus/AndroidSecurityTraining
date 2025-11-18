@@ -41,6 +41,13 @@ class VulnWebViewHelper : WebViewHelper {
                 }
                 context.sendBroadcast(i)
             }
+
+            @JavascriptInterface
+            fun showToast(message: String) {
+                android.widget.Toast
+                    .makeText(context, message, android.widget.Toast.LENGTH_LONG)
+                    .show()
+            }
         }, "Android")
 
         webView.webViewClient = object : WebViewClient() { /* accept everything by default */ }
@@ -55,20 +62,19 @@ class VulnWebViewHelper : WebViewHelper {
     }
 
     override fun loadUntrusted(context: Context, webView: WebView): String {
-        // Prepare a secret file inside internal storage to demonstrate path traversal from the asset scheme
+        // Create a secret file inside internal storage and load it directly via file:// to avoid asset traversal denial
+        val secretFile = java.io.File(context.filesDir, "secret.txt")
         try {
-            val secretFile = java.io.File(context.filesDir, "secret.txt")
             if (!secretFile.exists()) {
                 secretFile.writeText("TOP-SECRET: token=lab-" + System.currentTimeMillis())
             }
         } catch (t: Throwable) {
-            android.util.Log.w("WebDemo", "Failed to create secret.txt in files dir", t)
+            Log.w("WebDemo", "Failed to create secret.txt in files dir", t)
         }
-        val pkg = context.packageName
-        // Attempt WebView traversal from the asset sandbox to app's internal files
-        val url = "file:///android_asset/../../data/data/" + pkg + "/files/secret.txt"
+        val url = "file://${secretFile.absolutePath}"
+        webView.settings.allowFileAccess = true
         webView.loadUrl(url)
-        return "[VULN] Attempted file traversal load: $url\nNote: On newer WebView versions, this may be blocked; still useful as a teaching example."
+        return "[VULN] Loaded internal file via file:// URI: $url (file:// access is enabled in vuln build)"
     }
 
     override fun loadUntrustedHttp(context: Context, webView: WebView): String {
@@ -78,11 +84,93 @@ class VulnWebViewHelper : WebViewHelper {
         return "[VULN] Loaded untrusted (cleartext) $url"
     }
 
+    override fun loadLocalPayload(context: Context, webView: WebView): String {
+        // Intentionally insecure: enable powerful flags and load from shared/app-specific external storage
+        val s = webView.settings
+        s.javaScriptEnabled = true
+        s.allowFileAccess = true
+        s.allowContentAccess = true
+        s.allowUniversalAccessFromFileURLs = true
+        s.allowFileAccessFromFileURLs = true
+        webView.webViewClient = object : WebViewClient() {}
+
+        webView.addJavascriptInterface(object {
+            @JavascriptInterface
+            fun showToast(message: String) {
+                android.widget.Toast
+                    .makeText(context, message, android.widget.Toast.LENGTH_LONG)
+                    .show()
+            }
+        }, "android")
+
+        // Prefer app-specific external storage (works without runtime permission on modern Android)
+        val baseDir = context.getExternalFilesDir(null) ?: context.filesDir
+        val payloadFile = java.io.File(baseDir, "payload.html")
+        if (!payloadFile.exists()) {
+            runCatching {
+                payloadFile.writeText(
+                    """
+                    <!DOCTYPE html>
+<html>
+<body>
+<h1>JS Injection Test</h1>
+<script>
+    android.showToast("Owned from JS");
+</script>
+</body>
+</html>
+                    """.trimIndent()
+                )
+            }
+        }
+        val url = "file://" + payloadFile.absolutePath
+        webView.loadUrl(url)
+        return "[VULN] Loaded local payload with JS+file access enabled: $url"
+    }
+
+    override fun loadFromIntent(context: Context, webView: WebView, url: String): String {
+        // In vuln build, accept and load any scheme the WebView understands after enabling insecure flags
+        val s = webView.settings
+        s.javaScriptEnabled = true
+        s.allowFileAccess = true
+        s.allowContentAccess = true
+        s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        s.allowUniversalAccessFromFileURLs = true
+        s.allowFileAccessFromFileURLs = true
+        webView.webViewClient = object : WebViewClient() {}
+        webView.addJavascriptInterface(object {
+            @JavascriptInterface
+            fun showToast(message: String) {
+                android.widget.Toast
+                    .makeText(context, message, android.widget.Toast.LENGTH_LONG)
+                    .show()
+            }
+        }, "android")
+        webView.loadUrl(url)
+        return "[VULN] Loaded from VIEW intent without validation: $url"
+    }
+
     override fun runDemoJs(context: Context, webView: WebView): String {
         // Call the JS bridge to exfiltrate the token to page JS
         val js = "(function(){ if(window.Android){ Android.sendBroadcast('exfil:'+Android.leakToken()); return 'leaked'; } else { return 'no-bridge'; } })();"
-        webView.evaluateJavascript(js) { value ->
-            Log.w("WebDemo", "evaluateJavascript result: $value")
+        webView.settings.javaScriptEnabled = true
+        class MyJsBridge(private val context: Context) {
+            @JavascriptInterface
+            fun leakToken(): String {
+                return "leaked"
+            }
+
+            @JavascriptInterface
+            fun sendBroadcast(data: String) {
+                // do whatever you want with data
+            }
+        }
+
+        webView.addJavascriptInterface(MyJsBridge(context), "Android")
+        webView.post {
+            webView.evaluateJavascript(js) { value ->
+                Log.w("WebDemo", "evaluateJavascript result: $value")
+            }
         }
         return "Executed JS that calls Android.leakToken() and broadcasts it (trainers can observe via logs)"
     }

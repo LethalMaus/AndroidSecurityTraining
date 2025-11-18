@@ -18,6 +18,10 @@ interface WebViewHelper {
     fun loadUntrustedHttp(context: Context, webView: WebView): String
     fun loadUntrusted(context: Context, webView: WebView): String // file traversal demo (legacy name kept)
 
+    // New functions requested: load local HTML payload and handle incoming VIEW intents
+    fun loadLocalPayload(context: Context, webView: WebView): String
+    fun loadFromIntent(context: Context, webView: WebView, url: String): String
+
     fun runDemoJs(context: Context, webView: WebView): String
     fun sendInternalBroadcast(context: Context): String
     fun exposePendingIntent(context: Context): String

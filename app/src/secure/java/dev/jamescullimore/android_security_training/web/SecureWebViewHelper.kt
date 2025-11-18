@@ -77,6 +77,28 @@ class SecureWebViewHelper : WebViewHelper {
         return "[SECURE] Attempted cleartext HTTP load (should be blocked): $url"
     }
 
+    override fun loadLocalPayload(context: Context, webView: WebView): String {
+        // Keep protections: file access disabled; attempt will be blocked
+        val url = "file:///sdcard/Download/payload.html"
+        webView.loadUrl(url)
+        return "[SECURE] Attempted to load local payload but file access/URL policy should block: $url"
+    }
+
+    override fun loadFromIntent(context: Context, webView: WebView, url: String): String {
+        // Only allow https to an allowlisted host; otherwise block
+        return try {
+            val uri = android.net.Uri.parse(url)
+            if (uri != null && uri.scheme == "https" && isAllowed(uri)) {
+                webView.loadUrl(url)
+                "[SECURE] Loaded allowed https URL from intent: $url"
+            } else {
+                "[SECURE] Rejected VIEW intent URL: $url (scheme/host not allowed)"
+            }
+        } catch (t: Throwable) {
+            "[SECURE] Error handling VIEW intent URL: ${t.javaClass.simpleName}: ${t.message}"
+        }
+    }
+
     override fun runDemoJs(context: Context, webView: WebView): String {
         // Demonstrate safe JS call to display message, no native bridge exposed.
         Log.i("WebDemo", "Secure runDemoJs() invoked: no bridge exposed, executing harmless JS")

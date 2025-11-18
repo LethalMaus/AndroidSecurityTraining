@@ -1,5 +1,9 @@
 package dev.jamescullimore.android_security_training
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
@@ -18,18 +22,22 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import dev.jamescullimore.android_security_training.network.provideWebViewHelper
 import dev.jamescullimore.android_security_training.ui.theme.AndroidSecurityTrainingTheme
 
 class WebActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         enableEdgeToEdge()
         setContent {
             AndroidSecurityTrainingTheme {
@@ -38,6 +46,9 @@ class WebActivity : ComponentActivity() {
                     val helper = provideWebViewHelper()
                     val output = remember { mutableStateOf("Ready.") }
                     val webViewState = remember { mutableStateOf<WebView?>(null) }
+
+                    // Capture the launch intent once for Compose
+                    val incoming = remember { intent }
 
                     Column(modifier = Modifier
                         .padding(innerPadding)
@@ -64,6 +75,17 @@ class WebActivity : ComponentActivity() {
                             )
                         }
 
+                        // If launched via VIEW intent with data, auto-load it once the WebView exists
+                        LaunchedEffect(webViewState.value) {
+                            val wv = webViewState.value
+                            val data = incoming?.data
+                            if (wv != null && incoming?.action == Intent.ACTION_VIEW && data != null) {
+                                // Best-effort configure before loading
+                                runCatching { helper.configure(ctx, wv) }
+                                output.value = helper.loadFromIntent(ctx, wv, data.toString())
+                            }
+                        }
+
                         Spacer(Modifier.height(8.dp))
 
                         Column(
@@ -85,6 +107,12 @@ class WebActivity : ComponentActivity() {
                             Button(onClick = {
                                 webViewState.value?.let { output.value = helper.loadUntrusted(ctx, it) }
                             }) { Text("Load Untrusted FILE (path traversal)") }
+
+                            Button(onClick = {
+                                webViewState.value?.let { wv ->
+                                    output.value = helper.loadLocalPayload(ctx, wv)
+                                }
+                            }) { Text("Load Local Payload (app external files)") }
 
                             Button(onClick = {
                                 webViewState.value?.let { output.value = helper.runDemoJs(ctx, it) }

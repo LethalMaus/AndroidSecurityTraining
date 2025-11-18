@@ -668,9 +668,9 @@ A) Exported ContentProvider attack (adb)
 - Build and run `vulnPermDebug` or any vuln topic (provider is registered in the vuln manifest).
 - Query the exported provider from the shell:
   ```
-  adb shell content query --uri content://dev.jamescullimore.android_security_training.vuln.demo/users
+  adb shell content query --uri content://dev.jamescullimore.android_security_training.vuln.demo/hello
   ```
-  Expected (vuln): a row like `hello from DemoProvider: /users` because the provider is exported with no permission checks.
+  Expected (vuln): a row like `hello from DemoProvider: /hello` because the provider is exported with no permission checks.
 
 - Compare with secure builds: the same provider is non-exported and gated by a signature permission; external queries should fail.
 
@@ -705,9 +705,35 @@ Usage examples (vulnerable flavors expose this receiver; secure flavors keep it 
   ```
 - Secure build: The receiver is not exported and requires the custom signature permission, so external adb broadcasts will be ignored/denied by design. Triggering is possible only from inside the app or a same-signature test app.
 
-D) Other vuln WebView demos
+D) Load a malicious HTML payload (local file and via adb VIEW)
+- Place the payload into the app-specific external files directory (works without storage permissions on modern Android):
+  ```
+  # For the vulnerable package id
+  adb shell mkdir -p /sdcard/Android/data/dev.jamescullimore.android_security_training.vuln/files
+  adb push html/payload.html /sdcard/Android/data/dev.jamescullimore.android_security_training.vuln/files/payload.html
+  ```
+- In the app (vulnWebDebug):
+  1) Tap "Configure WebView".
+  2) Tap "Load Local Payload (app external files)" — this loads `file:///sdcard/Android/data/dev.jamescullimore.android_security_training.vuln/files/payload.html`.
+- Or trigger via adb with a VIEW intent (deep link to a file URL):
+  ```
+  adb shell am start -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.WebActivity -a android.intent.action.VIEW -d "file:///sdcard/Android/data/dev.jamescullimore.android_security_training.vuln/files/payload.html"
+  ```
+  - WebActivity has an intent-filter for `file`, `http`, and `https` and will auto-load the provided URI into the WebView on launch.
+  - Tip: You can also host the file and use `-d "http://10.0.2.2:8000/payload.html"` to demo from the host machine.
+
+E) Other vuln WebView demos
 - Run JS demo to exfiltrate a token from `addJavascriptInterface` and observe the broadcast.
 - Expose/trigger a mutable PendingIntent via broadcast leak.
+
+F) Exported Service demo (adb)
+- The vulnerable build exposes a simple Service that shows a Toast when started.
+- Start it from the shell:
+  ```
+  adb shell am startservice -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.ExportedService
+  ```
+- Expected: You should see a Toast on the device/emulator saying "[VULN] ExportedService started".
+- Note: Secure builds do not export this service.
 
 #### Best practices
   - Disable JS, file access, and mixed content by default.
