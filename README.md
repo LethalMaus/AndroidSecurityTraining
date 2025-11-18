@@ -74,17 +74,17 @@ Use this to demo HTTPS interception in the pinning and E2E labs on the Android e
   ```
 - Optional: Generate an SPKI pin from the mitmproxy CA cert file you downloaded (adjust filename as needed):
   ```
-  openssl x509 -in mitmproxy-ca-cert.cer -pubkey -noout \
-    | openssl pkey -pubin -outform der \
-    | openssl dgst -sha256 -binary \
+  openssl x509 -in mitmproxy-ca-cert.cer -pubkey -noout
+    | openssl pkey -pubin -outform der
+    | openssl dgst -sha256 -binary
     | openssl base64
   ```
 - Optional: Get an SPKI pin directly from a live host (example: api.github.com):
   ```
-  echo | openssl s_client -connect api.github.com:443 -servername api.github.com 2>/dev/null \
-    | openssl x509 -pubkey -noout \
-    | openssl pkey -pubin -outform der \
-    | openssl dgst -sha256 -binary \
+  echo | openssl s_client -connect api.github.com:443 -servername api.github.com 2>/dev/null
+    | openssl x509 -pubkey -noout
+    | openssl pkey -pubin -outform der
+    | openssl dgst -sha256 -binary
     | openssl base64
   ```
 
@@ -383,11 +383,11 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
 - Inspect merged manifest and exported state:
   ```
   adb shell dumpsys package dev.jamescullimore.android_security_training.secure | sed -n '1,160p'
-  adb shell dumpsys package dev.jamescullimore.android_security_training.vuln   | sed -n '1,160p'
+  adb shell dumpsys package dev.jamescullimore.android_security_training.vuln | sed -n '1,160p'
   ```
 - Try to query the provider from shell (acts as shell UID, not the app):
   ```
-  adb shell content query --uri content://<package>.demo/hello
+  adb shell content query --uri content://dev.jamescullimore.android_security_training.vuln.demo/hello
   ```
   Replace `<package>` with the running variant package (secure or vuln). Expect secure to deny.
 - Try to start the service from shell:
@@ -443,8 +443,7 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
   B) Test a verified App Link (secure should accept)
   - Command:
     ```
-    adb shell am start -a android.intent.action.VIEW \
-      -d "https://lethalmaus.github.io/AndroidSecurityTraining/welcome?code=abc&state=123"
+    adb shell am start -a android.intent.action.VIEW -d "https://lethalmaus.github.io/AndroidSecurityTraining/welcome?code=abc&state=123"
     ```
   - Expected (secure): DeepLinks screen shows validated=true; result "Accepted … (code redacted)".
   - Expected (vuln): Also accepts because it’s https; uses looser checks.
@@ -452,8 +451,7 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
   C) Test an unverified/custom host (secure should reject, vuln accepts)
   - Command:
     ```
-    adb shell am start -a android.intent.action.VIEW \
-      -d "https://lab.example.com/welcome?code=abc&state=123"
+    adb shell am start -a android.intent.action.VIEW -d "https://lab.example.com/welcome?code=abc&state=123"
     ```
   - Expected (secure): "Rejected: invalid scheme/host/path" and no navigation.
   - Expected (vuln): Treats as acceptable and echoes parameters.
@@ -481,8 +479,7 @@ This mini‑lab shows why AES/ECB is insecure: identical 16‑byte plaintext blo
 
 A) Send a benign custom-scheme URL (accepts a token)
 ```
-adb shell am start -a android.intent.action.VIEW \
-  -d "ast://dev.jamescullimore/AndroidSecurityTraining/open/?token=abc123"
+adb shell am start -a android.intent.action.VIEW -d "ast://dev.jamescullimore/AndroidSecurityTraining/open/?token=abc123"
 ```
 Expected:
 - App opens the Deep Links screen.
@@ -494,8 +491,7 @@ Expected:
 
 B) Send a canonicalized malicious URL using .. (path traversal/confused routing)
 ```
-adb shell am start -a android.intent.action.VIEW \
-  -d "ast://dev.jamescullimore/AndroidSecurityTraining/open/../private/secret"
+adb shell am start -a android.intent.action.VIEW -d "ast://dev.jamescullimore/AndroidSecurityTraining/open/../private/secret"
 ```
 Expected (vulnerable behavior):
 - App still "accepts" because it checks only that the RAW path starts with /AndroidSecurityTraining/open.
@@ -526,6 +522,8 @@ How to fix (secure approach)
   - Deep links documentation: https://developer.android.com/training/app-links/deep-linking
   - Digital Asset Links: https://developer.android.com/training/app-links/associate-website
   - MASVS‑PLATFORM: https://mas.owasp.org/MASVS/
+  - https://developers.google.com/digital-asset-links/v1/getting-started
+  - https://owasp.org/www-community/attacks/Path_Traversal
 
 ### 6. Secure storage
 #### Where in code
@@ -552,14 +550,11 @@ How to fix (secure approach)
   - Inspect on device/emulator (debug builds allow run-as):
     ```
     # Secure EncryptedSharedPreferences (ciphertext)
-    adb shell run-as dev.jamescullimore.android_security_training.secure \
-      ls files/ shared_prefs/
-    adb shell run-as dev.jamescullimore.android_security_training.secure \
-      cat shared_prefs/secure_prefs.xml  # keys/values appear encrypted
+    adb shell run-as dev.jamescullimore.android_security_training.secure ls files/ shared_prefs/
+    adb shell run-as dev.jamescullimore.android_security_training.secure cat shared_prefs/secure_prefs.xml  # keys/values appear encrypted
 
     # Insecure plaintext SharedPreferences
-    adb shell run-as dev.jamescullimore.android_security_training.vuln \
-      cat shared_prefs/insecure_prefs.xml
+    adb shell run-as dev.jamescullimore.android_security_training.vuln cat shared_prefs/insecure_prefs.xml
     ```
 
   C) Files demo
@@ -567,20 +562,16 @@ How to fix (secure approach)
   - Also write the insecure file and read it back.
   - Inspect:
     ```
-    adb shell run-as dev.jamescullimore.android_security_training.secure \
-      ls files/ && hexdump -C files/secure.txt | head
-    adb shell run-as dev.jamescullimore.android_security_training.vuln \
-      cat cache/insecure.txt
+    adb shell run-as dev.jamescullimore.android_security_training.secure ls files/ && hexdump -C files/secure.txt | head
+    adb shell run-as dev.jamescullimore.android_security_training.vuln cat cache/insecure.txt
     ```
 
   D) SQLite demo (plaintext DB for illustration)
   - Click DB Put/Get/List/Delete to manipulate a small table.
   - Inspect with sqlite3 (emulator has it in platform-tools images; if missing, pull the DB):
     ```
-    adb shell run-as dev.jamescullimore.android_security_training.secure \
-      sqlite3 databases/tokens.db '.tables'
-    adb shell run-as dev.jamescullimore.android_security_training.secure \
-      sqlite3 databases/tokens.db 'select * from tokens;'
+    adb shell run-as dev.jamescullimore.android_security_training.secure sqlite3 databases/tokens.db '.tables'
+    adb shell run-as dev.jamescullimore.android_security_training.secure sqlite3 databases/tokens.db 'select * from tokens;'
     ```
   - If you pull the DB to your host, open it with a desktop viewer such as DB Browser for SQLite, or use the sqlite3 CLI from https://www.sqlite.org/download.html.
 
@@ -600,6 +591,7 @@ How to fix (secure approach)
   - Android Keystore: https://developer.android.com/training/articles/keystore
   - Scoped storage: https://developer.android.com/about/versions/11/privacy/storage
   - MASVS‑STORAGE: https://mas.owasp.org/MASVS/
+  - https://rtx.meta.security/exploitation/2024/03/04/Android-run-as-forgery.html
 
 ### 7. Root/Jailbreak detection
 
@@ -660,6 +652,8 @@ E) Emulator note: Google APIs images vs real root
   - Play Integrity API: https://developer.android.com/google/play/integrity
   - SafetyNet Attestation (legacy): https://developer.android.com/training/safetynet/attestation
   - MASVS‑RESILIENCE: https://mas.owasp.org/MASVS/
+  - https://grapheneos.org/articles/attestation-compatibility-guide
+  - https://developer.android.com/training/articles/security-key-attestation
 
 ### 8. WebView & exported components
 #### Where in code
@@ -704,12 +698,10 @@ Usage examples (vulnerable flavors expose this receiver; secure flavors keep it 
 - Vulnerable build (any topic, package suffix `.vuln`):
   ```
   # Clear everything (prefs, files, cache, databases)
-  adb shell am broadcast -a dev.jamescullimore.android_security_training.ACTION_CLEAR_DATA \
-    -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.ClearDataReceiver
+  adb shell am broadcast -a dev.jamescullimore.android_security_training.ACTION_CLEAR_DATA -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.ClearDataReceiver
 
   # Clear only SharedPreferences
-  adb shell am broadcast -a dev.jamescullimore.android_security_training.ACTION_CLEAR_DATA --es what prefs \
-    -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.ClearDataReceiver
+  adb shell am broadcast -a dev.jamescullimore.android_security_training.ACTION_CLEAR_DATA --es what prefs -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.ClearDataReceiver
   ```
 - Secure build: The receiver is not exported and requires the custom signature permission, so external adb broadcasts will be ignored/denied by design. Triggering is possible only from inside the app or a same-signature test app.
 
@@ -772,8 +764,7 @@ D) Other vuln WebView demos
 
   D) Launch the app under user 10 and create the token file via the UI
   ```
-  adb shell am start --user 10 \
-    -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.MultiUserActivity
+  adb shell am start --user 10 -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.MultiUserActivity
   ```
   - In the Users screen, tap:
     - "Save Per‑User Token (secure)" (in the vuln build this intentionally writes a plaintext token to `shared_prefs/tokens_plain.xml`).
@@ -902,31 +893,6 @@ Steps: To install and use an emulator image that can run as root:
 - Scripts live in the `frida/` directory (for example: `frida/hook_secure_storage.js`).
 - If you don’t see classes/methods right after spawning, use `--no-pause` or interact with the target screen so code paths load.
 - On Google APIs emulators, Frida works fine for app‑level hooking even if `adbd` runs as root but the app cannot `su` — this is expected (see Root section for details).
-
-## Resetting app data via broadcast (lab helper)
-For quick lab resets, the app includes a BroadcastReceiver that can clear local data.
-
-- Action: `dev.training.ACTION_CLEAR_DATA`
-- Extras:
-  - `what` (optional): one of `prefs`, `files`, `cache`, `db`/`databases`, or omit for `all`.
-
-Usage examples (vulnerable flavors expose this receiver; secure flavors keep it non-exported and gated by a signature permission):
-
-- Vulnerable build (any topic, package suffix `.vuln`):
-  ```
-  # Clear everything (prefs, files, cache, databases)
-  adb shell am broadcast -a dev.training.ACTION_CLEAR_DATA \
-    -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.ClearDataReceiver
-
-  # Clear only SharedPreferences
-  adb shell am broadcast -a dev.training.ACTION_CLEAR_DATA --es what prefs \
-    -n dev.jamescullimore.android_security_training.vuln/dev.jamescullimore.android_security_training.ClearDataReceiver
-  ```
-- Secure build: The receiver is not exported and requires the custom signature permission, so external adb broadcasts will be ignored/denied by design. Triggering is possible only from inside the app or a same-signature test app.
-
-Notes
-- You will see a Toast and log line like `ACTION_CLEAR_DATA executed: Cleared X area(s)` when it runs.
-- This helper is intended for training and demo environments only.
 
 ## Troubleshooting
 - Build with the Gradle wrapper from Android Studio. If secure pinning fails, check device time and that pins match the current server keys.
