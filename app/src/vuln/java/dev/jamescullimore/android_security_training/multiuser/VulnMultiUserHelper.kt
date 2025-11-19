@@ -6,26 +6,19 @@ import android.os.Environment
 import android.os.Process
 import android.provider.Settings
 import java.io.File
-import java.io.InputStreamReader
+import androidx.core.content.edit
 
 // Intentionally insecure patterns for training ONLY
 class VulnMultiUserHelper : MultiUserHelper {
 
-    private fun suExec(cmd: String, timeoutMs: Long = 4000): Pair<Int, String> {
+    private fun suExec(cmd: String): Pair<Int, String> {
         return try {
-            val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
-            val t = Thread {
-                // Drain error stream to avoid blocking; we ignore content for brevity
-                try { p.errorStream.bufferedReader().readText() } catch (_: Throwable) {}
-            }
-            t.isDaemon = true
-            t.start()
-            val out = InputStreamReader(p.inputStream).readText()
-            if (!p.waitFor(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)) {
-                try { p.destroyForcibly() } catch (_: Throwable) {}
-                return -1 to "[root-demo] Command timed out: $cmd"
-            }
-            p.exitValue() to out.trim()
+            val process = ProcessBuilder("su", "--mount-master", "-c", cmd)
+                .redirectErrorStream(true)
+                .start()
+
+            val out = process.inputStream.bufferedReader().use { it.readText() }
+            process.exitValue() to out.trim()
         } catch (t: Throwable) {
             -2 to "[root-demo] su failed: ${t.javaClass.simpleName}: ${t.message}"
         }
@@ -58,7 +51,7 @@ class VulnMultiUserHelper : MultiUserHelper {
     override fun savePerUserToken(context: Context, token: String): String {
         // Bad: stores in plaintext SharedPreferences with a constant key (no per-user scoping).
         val prefs = context.getSharedPreferences("tokens_plain", Context.MODE_PRIVATE)
-        prefs.edit().putString("token", token).apply()
+        prefs.edit { putString("token", token) }
         return "[VULN] Saved token in plaintext SharedPreferences under constant key 'token' (not per-user scoped)"
     }
 
@@ -85,7 +78,7 @@ class VulnMultiUserHelper : MultiUserHelper {
         // Root-only teaching aid: attempt to read another user's SharedPreferences via shell
         val pkg = context.packageName
         val path = "/data/user/$targetUserId/$pkg/shared_prefs/tokens_plain.xml"
-        val (code, out) = suExec("cat $path || echo __NO_FILE__")
+        val (code, out) = suExec("cat $path")
         return when {
             code == 0 && out != "__NO_FILE__" && out.isNotBlank() -> {
                 val snippet = if (out.length > 600) out.take(600) + "\n…(truncated)…" else out

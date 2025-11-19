@@ -44,7 +44,7 @@ class MultiUserActivity : ComponentActivity() {
                             Text("Show Runtime Info (user/app/uid)")
                         }
                         Button(onClick = { output.value = helper.listUsersBestEffort(this@MultiUserActivity) }) {
-                            Text("List Users (best-effort)")
+                            Text("List Users")
                         }
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = { output.value = helper.savePerUserToken(this@MultiUserActivity, "token-user-${System.currentTimeMillis()}") }) {
@@ -70,7 +70,7 @@ class MultiUserActivity : ComponentActivity() {
                         Button(onClick = {
                             val id = targetUser.value.toIntOrNull() ?: -1
                             output.value = helper.tryCrossUserRead(this@MultiUserActivity, id)
-                        }) { Text("Try Cross-User Read (expect denial)") }
+                        }) { Text("Try Cross-User Read") }
 
                         Spacer(Modifier.height(12.dp))
                         Text(output.value)
