@@ -1,12 +1,16 @@
 package dev.jamescullimore.android_security_training.multiuser
 
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Environment
 import android.os.Process
+import android.os.UserHandle
 import android.provider.Settings
 import java.io.File
 import androidx.core.content.edit
+import java.util.concurrent.TimeUnit
+import java.lang.reflect.InvocationTargetException
 
 // Intentionally insecure patterns for training ONLY
 class VulnMultiUserHelper : MultiUserHelper {
@@ -18,6 +22,7 @@ class VulnMultiUserHelper : MultiUserHelper {
                 .start()
 
             val out = process.inputStream.bufferedReader().use { it.readText() }
+            process.waitFor(4, TimeUnit.SECONDS)
             process.exitValue() to out.trim()
         } catch (t: Throwable) {
             -2 to "[root-demo] su failed: ${t.javaClass.simpleName}: ${t.message}"
@@ -78,7 +83,7 @@ class VulnMultiUserHelper : MultiUserHelper {
         // Root-only teaching aid: attempt to read another user's SharedPreferences via shell
         val pkg = context.packageName
         val path = "/data/user/$targetUserId/$pkg/shared_prefs/tokens_plain.xml"
-        val (code, out) = suExec("cat $path")
+        val (code, out) = suExec("cat $path || echo __NO_FILE__")
         return when {
             code == 0 && out != "__NO_FILE__" && out.isNotBlank() -> {
                 val snippet = if (out.length > 600) out.take(600) + "\n…(truncated)…" else out
@@ -86,6 +91,64 @@ class VulnMultiUserHelper : MultiUserHelper {
             }
             code == 0 && out == "__NO_FILE__" -> "[VULN][root-only demo] Target file not found for user $targetUserId: $path"
             else -> "[VULN] Root shell failed to read $path (exit=$code): $out"
+        }
+    }
+
+    private fun userHandleCompat(targetUserId: Int): Any {
+        val userHandleClass = Class.forName("android.os.UserHandle")
+        return try {
+            val ofMethod = userHandleClass.getMethod("of", Int::class.javaPrimitiveType)
+            ofMethod.invoke(null, targetUserId)
+        } catch (_: NoSuchMethodException) {
+            val ctor = userHandleClass.getDeclaredConstructor(Int::class.javaPrimitiveType)
+            ctor.isAccessible = true
+            ctor.newInstance(targetUserId)
+        }
+    }
+
+    private fun unwrapInvocationTarget(ex: Throwable): Throwable {
+        return if (ex is InvocationTargetException && ex.cause != null) ex.cause!! else ex
+    }
+
+    override fun trySendBroadcastAsUser(context: Context, targetUserId: Int, action: String): String {
+        // First, try the direct API via reflection (will throw without INTERACT_ACROSS_USERS_FULL)
+        return try {
+            val intent = Intent(action)
+            val userHandleClass = Class.forName("android.os.UserHandle")
+            val userHandle = userHandleCompat(targetUserId)
+            val m = Context::class.java.getMethod("sendBroadcastAsUser", Intent::class.java, userHandleClass)
+            m.invoke(context, intent, userHandle)
+            "sendBroadcastAsUser invoked via reflection; if no exception, device/app is privileged"
+        } catch (t: Throwable) {
+            val root = unwrapInvocationTarget(t)
+            // Attempt rooted fallback using shell 'am broadcast'
+            val (code, out) = suExec("am broadcast --user $targetUserId -a $action")
+            if (code == 0) {
+                "sendBroadcastAsUser denied by API (${root.javaClass.simpleName}); rooted fallback succeeded via 'am':\n$out"
+            } else {
+                "sendBroadcastAsUser failed (${root.javaClass.simpleName}): ${root.message}. Rooted fallback also failed (exit=$code): $out"
+            }
+        }
+    }
+
+    override fun tryCreateContextAsUser(context: Context, targetUserId: Int): String {
+        return try {
+            val userHandleClass = Class.forName("android.os.UserHandle")
+            val userHandle = userHandleCompat(targetUserId)
+            val m = Context::class.java.getMethod(
+                "createPackageContextAsUser",
+                String::class.java,
+                Int::class.javaPrimitiveType,
+                userHandleClass
+            )
+            val other = m.invoke(context, context.packageName, 0, userHandle) as Context
+            // Try to read the same prefs file name from the other context
+            val prefs = other.getSharedPreferences("tokens_plain", Context.MODE_PRIVATE)
+            val token = prefs.getString("token", null)
+            "createPackageContextAsUser succeeded. Other user token='${token ?: "<none>"}'"
+        } catch (t: Throwable) {
+            val root = unwrapInvocationTarget(t)
+            "createPackageContextAsUser failed: ${root.javaClass.simpleName}: ${root.message}"
         }
     }
 }

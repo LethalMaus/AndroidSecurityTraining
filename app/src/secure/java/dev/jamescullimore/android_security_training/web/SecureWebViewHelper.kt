@@ -65,7 +65,7 @@ class SecureWebViewHelper : WebViewHelper {
             }
         } catch (_: Throwable) { }
         val pkg = context.packageName
-        val url = "file:///android_asset/../../data/data/" + pkg + "/files/secret.txt"
+        val url = "file:///android_asset/../../data/data/$pkg/files/secret.txt"
         webView.loadUrl(url)
         return "[SECURE] Attempted file traversal load (blocked by fileAccess=false and URL allowlist): $url"
     }
@@ -129,6 +129,6 @@ class SecureWebViewHelper : WebViewHelper {
     }
 
     companion object {
-        const val ACTION_DEMO = "dev.jamescullimore.android_security_training.web.DEMO"
+        const val ACTION_DEMO = "dev.jamescullimore.android_security_training.DEMO"
     }
 }

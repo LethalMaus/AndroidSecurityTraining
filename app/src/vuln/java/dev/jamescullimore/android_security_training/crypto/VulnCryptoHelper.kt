@@ -44,8 +44,8 @@ class VulnCryptoHelper : CryptoHelper {
         val cipher = Cipher.getInstance("AES/ECB/PKCS5Padding")
         cipher.init(Cipher.ENCRYPT_MODE, staticKey)
         val ct = cipher.doFinal(plaintext)
-        val iv = ByteArray(12) { 0 }
-        val tag = ByteArray(16) { 0 }
+        val iv = ByteArray(12)
+        val tag = ByteArray(16)
         return CryptoHelper.AesGcmResult(iv = iv, cipherText = ct, tag = tag, algorithm = "AES/ECB/PKCS5Padding")
     }
 
@@ -91,8 +91,8 @@ class VulnCryptoHelper : CryptoHelper {
             .post(bodyJson.toRequestBody("application/json".toMediaType()))
             .build()
         client.newCall(req).execute().use { resp ->
-            val snippet = resp.body?.string()?.take(400)
-            "HTTP ${resp.code}: ${snippet ?: "<empty>"}"
+            val snippet = resp.body.string().take(400)
+            "HTTP ${resp.code}: $snippet"
         }
     }
 }

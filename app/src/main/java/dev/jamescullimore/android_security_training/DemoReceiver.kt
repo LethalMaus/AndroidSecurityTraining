@@ -1,4 +1,4 @@
-package dev.jamescullimore.android_security_training.web
+package dev.jamescullimore.android_security_training
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -21,11 +21,11 @@ class DemoReceiver : BroadcastReceiver() {
 
         // User-visible feedback so the demo works even without Logcat open
         when (action) {
-            "dev.jamescullimore.android_security_training.web.DEMO" -> {
+            "dev.jamescullimore.android_security_training.DEMO" -> {
                 val m = intent.getStringExtra("msg")
                 Toast.makeText(context, "DEMO broadcast: msg=$m", Toast.LENGTH_LONG).show()
             }
-            "dev.jamescullimore.android_security_training.web.LEAK_PI" -> {
+            "dev.jamescullimore.android_security_training.LEAK_PI" -> {
                 Toast.makeText(context, "LEAK_PI received — attempting to trigger PendingIntent", Toast.LENGTH_LONG).show()
                 val pi = intent.getParcelableExtra<PendingIntent>("pi")
                 if (pi != null) {

@@ -1,4 +1,4 @@
-package dev.jamescullimore.android_security_training.network
+package dev.jamescullimore.android_security_training
 
 import dev.jamescullimore.android_security_training.crypto.CryptoHelper
 import dev.jamescullimore.android_security_training.crypto.VulnCryptoHelper
@@ -6,6 +6,8 @@ import dev.jamescullimore.android_security_training.deeplink.DeepLinkHelper
 import dev.jamescullimore.android_security_training.deeplink.VulnDeepLinkHelper
 import dev.jamescullimore.android_security_training.multiuser.MultiUserHelper
 import dev.jamescullimore.android_security_training.multiuser.VulnMultiUserHelper
+import dev.jamescullimore.android_security_training.network.NetworkHelper
+import dev.jamescullimore.android_security_training.network.VulnNetworkHelper
 import dev.jamescullimore.android_security_training.perm.PermDemoHelper
 import dev.jamescullimore.android_security_training.perm.VulnPermDemoHelper
 import dev.jamescullimore.android_security_training.re.ReDemoHelper

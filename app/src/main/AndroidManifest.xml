@@ -19,16 +19,6 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AndroidSecurityTraining">
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.AndroidSecurityTraining">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
 
         <!-- Demo components with secure defaults (locked down) -->
         <service
@@ -46,10 +36,10 @@
 
         <!-- Web topic: broadcast receiver with secure defaults (not exported) -->
         <receiver
-            android:name=".web.DemoReceiver"
+            android:name=".DemoReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="dev.jamescullimore.android_security_training.web.DEMO" />
+                <action android:name="dev.jamescullimore.android_security_training.DEMO" />
             </intent-filter>
         </receiver>
 

@@ -37,15 +37,15 @@
 
         <!-- Web topic receiver made dangerously exported in vuln builds -->
         <receiver
-            android:name=".web.DemoReceiver"
+            android:name=".DemoReceiver"
             tools:replace="android:exported"
             android:exported="true"
             tools:ignore="ExportedReceiver">
             <intent-filter>
-                <action android:name="dev.jamescullimore.android_security_training.web.DEMO" />
+                <action android:name="dev.jamescullimore.android_security_training.DEMO" />
             </intent-filter>
             <intent-filter>
-                <action android:name="dev.jamescullimore.android_security_training.web.LEAK_PI" />
+                <action android:name="dev.jamescullimore.android_security_training.LEAK_PI" />
             </intent-filter>
         </receiver>
 

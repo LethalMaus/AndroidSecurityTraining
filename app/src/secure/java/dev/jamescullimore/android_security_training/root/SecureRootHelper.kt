@@ -259,7 +259,7 @@ class SecureRootHelper : RootHelper {
             } else {
                 false to "interactive su (exit=$exit) => $out"
             }
-        } catch (t: Throwable) {
+        } catch (_: Throwable) {
             // fallthrough with diagnostic
         }
         return false to attempts.joinToString(" | ") { it.joinToString(" ") }

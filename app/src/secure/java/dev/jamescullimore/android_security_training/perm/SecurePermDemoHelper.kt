@@ -15,16 +15,9 @@ class SecurePermDemoHelper : PermDemoHelper {
         val pm = context.packageManager
         val pkg = context.packageName
         val signingBytes: ByteArray? = try {
-            if (Build.VERSION.SDK_INT >= 28) {
-                @Suppress("DEPRECATION")
-                val pInfo = pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
-                pInfo.signingInfo?.apkContentsSigners?.firstOrNull()?.toByteArray()
-            } else {
-                @Suppress("DEPRECATION")
-                val pInfo = pm.getPackageInfo(pkg, 0)
-                @Suppress("DEPRECATION")
-                pInfo.signatures?.firstOrNull()?.toByteArray()
-            }
+            @Suppress("DEPRECATION")
+            val pInfo = pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
+            pInfo.signingInfo?.apkContentsSigners?.firstOrNull()?.toByteArray()
         } catch (t: Throwable) {
             null
         }

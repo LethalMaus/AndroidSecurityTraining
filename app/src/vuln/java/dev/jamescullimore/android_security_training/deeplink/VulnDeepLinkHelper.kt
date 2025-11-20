@@ -2,7 +2,6 @@ package dev.jamescullimore.android_security_training.deeplink
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.util.Log
 import androidx.core.net.toUri
 

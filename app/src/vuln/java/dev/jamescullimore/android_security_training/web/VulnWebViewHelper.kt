@@ -34,7 +34,7 @@ class VulnWebViewHelper : WebViewHelper {
             @JavascriptInterface
             fun sendBroadcast(msg: String) {
                 Log.w("WebDemo", "JS bridge sendBroadcast(msg) called with msg=$msg")
-                val i = Intent("dev.jamescullimore.android_security_training.web.DEMO").apply {
+                val i = Intent("dev.jamescullimore.android_security_training.DEMO").apply {
                     putExtra("msg", msg)
                     // Target our own app to guarantee delivery during the demo
                     setPackage(context.packageName)
@@ -85,24 +85,7 @@ class VulnWebViewHelper : WebViewHelper {
     }
 
     override fun loadLocalPayload(context: Context, webView: WebView): String {
-        // Intentionally insecure: enable powerful flags and load from shared/app-specific external storage
-        val s = webView.settings
-        s.javaScriptEnabled = true
-        s.allowFileAccess = true
-        s.allowContentAccess = true
-        s.allowUniversalAccessFromFileURLs = true
-        s.allowFileAccessFromFileURLs = true
-        webView.webViewClient = object : WebViewClient() {}
-
-        webView.addJavascriptInterface(object {
-            @JavascriptInterface
-            fun showToast(message: String) {
-                android.widget.Toast
-                    .makeText(context, message, android.widget.Toast.LENGTH_LONG)
-                    .show()
-            }
-        }, "android")
-
+        configure(context, webView)
         // Prefer app-specific external storage (works without runtime permission on modern Android)
         val baseDir = context.getExternalFilesDir(null) ?: context.filesDir
         val payloadFile = java.io.File(baseDir, "payload.html")
@@ -115,7 +98,7 @@ class VulnWebViewHelper : WebViewHelper {
 <body>
 <h1>JS Injection Test</h1>
 <script>
-    android.showToast("Owned from JS");
+    Android.showToast("Owned from JS");
 </script>
 </body>
 </html>
@@ -129,44 +112,15 @@ class VulnWebViewHelper : WebViewHelper {
     }
 
     override fun loadFromIntent(context: Context, webView: WebView, url: String): String {
-        // In vuln build, accept and load any scheme the WebView understands after enabling insecure flags
-        val s = webView.settings
-        s.javaScriptEnabled = true
-        s.allowFileAccess = true
-        s.allowContentAccess = true
-        s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-        s.allowUniversalAccessFromFileURLs = true
-        s.allowFileAccessFromFileURLs = true
-        webView.webViewClient = object : WebViewClient() {}
-        webView.addJavascriptInterface(object {
-            @JavascriptInterface
-            fun showToast(message: String) {
-                android.widget.Toast
-                    .makeText(context, message, android.widget.Toast.LENGTH_LONG)
-                    .show()
-            }
-        }, "android")
+        configure(context, webView)
         webView.loadUrl(url)
         return "[VULN] Loaded from VIEW intent without validation: $url"
     }
 
     override fun runDemoJs(context: Context, webView: WebView): String {
         // Call the JS bridge to exfiltrate the token to page JS
+        configure(context, webView)
         val js = "(function(){ if(window.Android){ Android.sendBroadcast('exfil:'+Android.leakToken()); return 'leaked'; } else { return 'no-bridge'; } })();"
-        webView.settings.javaScriptEnabled = true
-        class MyJsBridge(private val context: Context) {
-            @JavascriptInterface
-            fun leakToken(): String {
-                return "leaked"
-            }
-
-            @JavascriptInterface
-            fun sendBroadcast(data: String) {
-                // do whatever you want with data
-            }
-        }
-
-        webView.addJavascriptInterface(MyJsBridge(context), "Android")
         webView.post {
             webView.evaluateJavascript(js) { value ->
                 Log.w("WebDemo", "evaluateJavascript result: $value")
@@ -176,7 +130,7 @@ class VulnWebViewHelper : WebViewHelper {
     }
 
     override fun sendInternalBroadcast(context: Context): String {
-        val intent = Intent("dev.jamescullimore.android_security_training.web.DEMO").apply {
+        val intent = Intent("dev.jamescullimore.android_security_training.DEMO").apply {
             putExtra("msg", "hello-from-vuln")
             // Ensure delivery to our app for the demo while still using exported receiver for training
             setPackage(context.packageName)
@@ -212,7 +166,7 @@ class VulnWebViewHelper : WebViewHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
         leakedPendingIntent = pi
-        val leakIntent = Intent("dev.jamescullimore.android_security_training.web.LEAK_PI").apply {
+        val leakIntent = Intent("dev.jamescullimore.android_security_training.LEAK_PI").apply {
             putExtra("pi", pi)
             // Target our own app to guarantee delivery during the demo
             setPackage(context.packageName)

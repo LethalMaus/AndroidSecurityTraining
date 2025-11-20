@@ -3,10 +3,6 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <application>
-        <!-- Remove the default RemovedMainActivity from base manifest for this topic -->
-        <activity android:name=".MainActivity" tools:node="remove" />
-
-        <!-- Declare topic-specific launcher activity -->
         <activity
             android:name=".MultiUserActivity"
             android:exported="true"

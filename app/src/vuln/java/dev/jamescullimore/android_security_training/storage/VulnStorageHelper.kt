@@ -5,6 +5,7 @@ import android.os.Environment
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.io.File
+import androidx.core.content.edit
 
 // Intentionally insecure implementations for training ONLY
 class VulnStorageHelper : StorageHelper {
@@ -13,8 +14,9 @@ class VulnStorageHelper : StorageHelper {
     override suspend fun saveTokenSecure(context: Context, token: String): String {
         // In vuln build, we still show the "secure" method to contrast. We'll store in EncryptedSharedPreferences only in secure build.
         val prefs = context.getSharedPreferences("secure_like_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_TOKEN, token.reversed()) // bogus transformation
-            .apply()
+        prefs.edit {
+            putString(KEY_TOKEN, token.reversed()) // bogus transformation
+        }
         return "[VULN] Pretended to save securely but actually stored obfuscated token in plaintext prefs"
     }
 
@@ -26,7 +28,7 @@ class VulnStorageHelper : StorageHelper {
 
     override suspend fun saveTokenInsecure(context: Context, token: String): String {
         val prefs = context.getSharedPreferences("insecure_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_TOKEN, token).apply()
+        prefs.edit { putString(KEY_TOKEN, token) }
         return "Saved token INSECURELY to plaintext SharedPreferences"
     }
 

@@ -1,14 +1,13 @@
 package dev.jamescullimore.android_security_training
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -29,8 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import dev.jamescullimore.android_security_training.network.provideWebViewHelper
 import dev.jamescullimore.android_security_training.ui.theme.AndroidSecurityTrainingTheme
 
@@ -63,10 +60,12 @@ class WebActivity : ComponentActivity() {
                             .height(400.dp)
                         ) {
                             AndroidView(
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier.fillMaxSize()
+                                    .verticalScroll(rememberScrollState()),
                                 factory = { context ->
                                     WebView(context).apply {
                                         webViewState.value = this
+                                        isVerticalScrollBarEnabled = true
                                     }
                                 },
                                 update = {
@@ -92,10 +91,6 @@ class WebActivity : ComponentActivity() {
                             modifier = Modifier
                                 .fillMaxWidth()
                         ) {
-                            Button(onClick = {
-                                webViewState.value?.let { output.value = helper.configure(ctx, it) }
-                            }) { Text("Configure WebView") }
-
                             Button(onClick = {
                                 webViewState.value?.let { output.value = helper.loadTrusted(ctx, it) }
                             }) { Text("Load Trusted URL (https)") }

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Process
+import androidx.core.net.toUri
 
 class VulnPermDemoHelper : PermDemoHelper {
     override fun uidGidAndSignatureInfo(context: Context): String {
@@ -26,7 +27,7 @@ class VulnPermDemoHelper : PermDemoHelper {
 
     override fun tryQueryDemoProvider(context: Context, uri: String): String {
         return try {
-            val u = Uri.parse(uri)
+            val u = uri.toUri()
             context.contentResolver.query(u, null, null, null, null)?.use { c ->
                 val rows = c.count
                 "query ok: rows=$rows"

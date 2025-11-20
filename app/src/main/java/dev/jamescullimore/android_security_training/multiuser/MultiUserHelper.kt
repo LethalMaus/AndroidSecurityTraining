@@ -19,4 +19,10 @@ interface MultiUserHelper {
 
     /** Attempt cross-user read (will fail without special permissions; used to show SecurityException handling). */
     fun tryCrossUserRead(context: Context, targetUserId: Int): String
+
+    /** Attempt to send a broadcast to another user. */
+    fun trySendBroadcastAsUser(context: Context, targetUserId: Int, action: String): String
+
+    /** Attempt to create a Context for another user. */
+    fun tryCreateContextAsUser(context: Context, targetUserId: Int): String
 }

@@ -1,14 +1,17 @@
 package dev.jamescullimore.android_security_training.multiuser
 
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Process
+import android.os.UserHandle
 import android.provider.Settings
 import android.util.Base64
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import java.io.File
 import androidx.core.content.edit
+import java.lang.reflect.InvocationTargetException
 
 class SecureMultiUserHelper : MultiUserHelper {
 
@@ -74,6 +77,55 @@ class SecureMultiUserHelper : MultiUserHelper {
     override fun tryCrossUserRead(context: Context, targetUserId: Int): String {
         // We do not hold INTERACT_ACROSS_USERS; show expected denial.
         return "Cross-user access denied: requires INTERACT_ACROSS_USERS(_FULL). Demonstration only; see README for adb/AAOS notes."
+    }
+
+    private fun userHandleCompat(targetUserId: Int): Any {
+        val userHandleClass = Class.forName("android.os.UserHandle")
+        return try {
+            val ofMethod = userHandleClass.getMethod("of", Int::class.javaPrimitiveType)
+            ofMethod.invoke(null, targetUserId)
+        } catch (_: NoSuchMethodException) {
+            // Older API fallback: hidden constructor UserHandle(int)
+            val ctor = userHandleClass.getDeclaredConstructor(Int::class.javaPrimitiveType)
+            ctor.isAccessible = true
+            ctor.newInstance(targetUserId)
+        }
+    }
+
+    private fun unwrapInvocationTarget(ex: Throwable): Throwable {
+        return if (ex is InvocationTargetException && ex.cause != null) ex.cause!! else ex
+    }
+
+    override fun trySendBroadcastAsUser(context: Context, targetUserId: Int, action: String): String {
+        return try {
+            val intent = Intent(action)
+            val userHandleClass = Class.forName("android.os.UserHandle")
+            val userHandle = userHandleCompat(targetUserId)
+            val m = Context::class.java.getMethod("sendBroadcastAsUser", Intent::class.java, userHandleClass)
+            m.invoke(context, intent, userHandle)
+            "sendBroadcastAsUser invoked; expected SecurityException on stock devices"
+        } catch (t: Throwable) {
+            val root = unwrapInvocationTarget(t)
+            "sendBroadcastAsUser failed: ${root.javaClass.simpleName}: ${root.message}"
+        }
+    }
+
+    override fun tryCreateContextAsUser(context: Context, targetUserId: Int): String {
+        return try {
+            val userHandleClass = Class.forName("android.os.UserHandle")
+            val userHandle = userHandleCompat(targetUserId)
+            val m = Context::class.java.getMethod(
+                "createPackageContextAsUser",
+                String::class.java,
+                Int::class.javaPrimitiveType,
+                userHandleClass
+            )
+            val other = m.invoke(context, context.packageName, 0, userHandle) as Context
+            "createPackageContextAsUser succeeded (unexpected on stock devices): ${other.packageName}"
+        } catch (t: Throwable) {
+            val root = unwrapInvocationTarget(t)
+            "createPackageContextAsUser failed: ${root.javaClass.simpleName}: ${root.message}"
+        }
     }
 
     private fun redact(s: String): String = if (s.length <= 4) "****" else s.take(2) + "…" + s.takeLast(2)

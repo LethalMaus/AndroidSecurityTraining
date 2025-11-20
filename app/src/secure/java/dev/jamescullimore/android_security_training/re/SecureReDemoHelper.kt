@@ -46,17 +46,10 @@ class SecureReDemoHelper : ReDemoHelper {
         val pm = context.packageManager
         val pkg = context.packageName
         val cf = CertificateFactory.getInstance("X509")
-        val sigBytesList: List<ByteArray> = if (Build.VERSION.SDK_INT >= 28) {
-            val info = pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
-            val signInfo = info.signingInfo
-            val sigs = if (signInfo != null && signInfo.hasMultipleSigners()) signInfo.apkContentsSigners else signInfo?.signingCertificateHistory
-            sigs?.map { it.toByteArray() } ?: emptyList()
-        } else {
-            @Suppress("DEPRECATION")
-            val info = pm.getPackageInfo(pkg, PackageManager.GET_SIGNATURES)
-            @Suppress("DEPRECATION")
-            info.signatures?.map { it.toByteArray() } ?: emptyList()
-        }
+        val info = pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
+        val signInfo = info.signingInfo
+        val sigs = if (signInfo != null && signInfo.hasMultipleSigners()) signInfo.apkContentsSigners else signInfo?.signingCertificateHistory
+        val sigBytesList: List<ByteArray> = sigs?.map { it.toByteArray() } ?: emptyList()
         val first = sigBytesList.firstOrNull() ?: error("No signatures")
         val cert = cf.generateCertificate(ByteArrayInputStream(first)) as X509Certificate
         val sha = MessageDigest.getInstance("SHA-256").digest(cert.encoded)

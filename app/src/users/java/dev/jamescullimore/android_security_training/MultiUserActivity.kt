@@ -19,7 +19,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.jamescullimore.android_security_training.network.provideMultiUserHelper
 import dev.jamescullimore.android_security_training.ui.theme.AndroidSecurityTrainingTheme
 
 class MultiUserActivity : ComponentActivity() {
@@ -32,6 +31,7 @@ class MultiUserActivity : ComponentActivity() {
                     val helper = provideMultiUserHelper()
                     val output = remember { mutableStateOf("Ready. Variant: ${BuildConfig.FLAVOR}") }
                     val targetUser = remember { mutableStateOf("10") } // default demo user id
+                    val broadcastAction = remember { mutableStateOf("dev.jamescullimore.android_security_training.DEMO") }
 
                     Column(modifier = Modifier
                         .padding(innerPadding)
@@ -65,12 +65,25 @@ class MultiUserActivity : ComponentActivity() {
                         OutlinedTextField(
                             value = targetUser.value,
                             onValueChange = { targetUser.value = it.filter { ch -> ch.isDigit() }.take(6) },
-                            label = { Text("Target userId for cross-user read (adb pm list users)") }
+                            label = { Text("Target userId (adb pm list users)") }
+                        )
+                        OutlinedTextField(
+                            value = broadcastAction.value,
+                            onValueChange = { broadcastAction.value = it.take(120) },
+                            label = { Text("Broadcast action for cross-user demo") }
                         )
                         Button(onClick = {
                             val id = targetUser.value.toIntOrNull() ?: -1
                             output.value = helper.tryCrossUserRead(this@MultiUserActivity, id)
-                        }) { Text("Try Cross-User Read") }
+                        }) { Text("Try Cross-User File Read (root demo)") }
+                        Button(onClick = {
+                            val id = targetUser.value.toIntOrNull() ?: -1
+                            output.value = helper.trySendBroadcastAsUser(this@MultiUserActivity, id, broadcastAction.value)
+                        }) { Text("Try sendBroadcastAsUser") }
+                        Button(onClick = {
+                            val id = targetUser.value.toIntOrNull() ?: -1
+                            output.value = helper.tryCreateContextAsUser(this@MultiUserActivity, id)
+                        }) { Text("Try createPackageContextAsUser") }
 
                         Spacer(Modifier.height(12.dp))
                         Text(output.value)
