@@ -1,12 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
-        <!-- Remove the default RemovedMainActivity from base manifest for this topic -->
-        <activity android:name=".MainActivity" tools:node="remove" />
-
-        <!-- Declare topic-specific launcher activity -->
         <activity
             android:name=".PermActivity"
             android:exported="true"

@@ -1,0 +1,3 @@
+package dev.jamescullimore.android_security_training
+
+annotation class PaparazziConfig(val maxPercentDifference: Double)

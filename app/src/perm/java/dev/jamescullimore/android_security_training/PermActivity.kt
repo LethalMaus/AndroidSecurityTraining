@@ -19,9 +19,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.jamescullimore.android_security_training.perm.PermDemoHelper
-import dev.jamescullimore.android_security_training.network.providePermDemoHelper
 import dev.jamescullimore.android_security_training.ui.theme.AndroidSecurityTrainingTheme
 
 class PermActivity : ComponentActivity() {
@@ -30,43 +30,57 @@ class PermActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AndroidSecurityTrainingTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    PermHome(modifier = Modifier.padding(innerPadding))
-                }
+                PermHome()
             }
         }
     }
 }
 
 @Composable
-fun PermHome(modifier: Modifier = Modifier) {
+fun PermHome() {
     val context = LocalContext.current
     val helper: PermDemoHelper = remember { providePermDemoHelper() }
     var result by remember { mutableStateOf("Permission Internals & App Packaging demo") }
     var uriText by remember { mutableStateOf("") }
 
-    Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
-        Text(text = "Permissions & Packaging", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = {
-            result = helper.uidGidAndSignatureInfo(context)
-        }) { Text("Show UID/GID & Signing Info") }
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = {
-            result = helper.tryStartProtectedService(context)
-        }) { Text("Start DemoService") }
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(value = uriText, onValueChange = { uriText = it }, label = { Text("Content URI (optional)") })
-        Spacer(Modifier.height(4.dp))
-        Button(onClick = {
-            result = helper.tryQueryDemoProvider(context, uriText.ifBlank { helper.defaultDemoUri(context) })
-        }) { Text("Query DemoProvider") }
-        Spacer(Modifier.height(16.dp))
-        Text("Result:\n$result")
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "Secure builds restrict exported components and require a custom signature permission. Vuln builds export components without protection to show risks.",
-            style = MaterialTheme.typography.bodySmall
-        )
+    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+        Column(
+            modifier = Modifier.padding(innerPadding).verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
+            Text(text = "Permissions & Packaging", style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = {
+                result = helper.uidGidAndSignatureInfo(context)
+            }) { Text("Show UID/GID & Signing Info") }
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = {
+                result = helper.tryStartProtectedService(context)
+            }) { Text("Start DemoService") }
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = uriText,
+                onValueChange = { uriText = it },
+                label = { Text("Content URI (optional)") })
+            Spacer(Modifier.height(4.dp))
+            Button(onClick = {
+                result = helper.tryQueryDemoProvider(
+                    context,
+                    uriText.ifBlank { helper.defaultDemoUri(context) })
+            }) { Text("Query DemoProvider") }
+            Spacer(Modifier.height(16.dp))
+            Text("Result:\n$result")
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Secure builds restrict exported components and require a custom signature permission. Vuln builds export components without protection to show risks.",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
     }
+}
+
+@Preview
+@Composable
+internal fun PermHomePreview() {
+    PermHome()
 }

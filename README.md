@@ -1,4 +1,4 @@
-# Android Security Training
+[# Android Security Training
 
 Teach Android security with hands‑on, side‑by‑side examples. Each topic has two flavors: a secure implementation that follows best practices and a deliberately vulnerable one for learning and demos.
 
@@ -32,7 +32,7 @@ This README is concise but complete: purpose, prerequisites, build variants, how
 
 ## Prerequisites (tools) and before‑you‑start steps
 - Android Studio (latest stable) with Android SDK and emulator images installed.
-- Java 11 toolchain (Gradle wrapper config uses JDK 11 compatibility).
+- Java 21 toolchain (Gradle wrapper config uses JDK 21 compatibility).
 - A device or emulator. For interception/root labs, prefer an emulator you control (see rooted emulator section).
 - Optional but recommended for labs:
   - mitmproxy, Burp Suite, or OWASP ZAP
@@ -1110,3 +1110,4 @@ Tips
 - For MITM demos, remember: secure flavors do not trust user CAs; use vuln flavors.
 - If the emulator won’t run as root, confirm you didn’t pick a Google Play image (see section above).
 - Expect‑CT (legacy): https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Expect-CT
+]()

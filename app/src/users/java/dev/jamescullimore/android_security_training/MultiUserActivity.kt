@@ -15,9 +15,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.jamescullimore.android_security_training.ui.theme.AndroidSecurityTrainingTheme
 
@@ -27,69 +30,80 @@ class MultiUserActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AndroidSecurityTrainingTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    val helper = provideMultiUserHelper()
-                    val output = remember { mutableStateOf("Ready. Variant: ${BuildConfig.FLAVOR}") }
-                    val targetUser = remember { mutableStateOf("10") } // default demo user id
-                    val broadcastAction = remember { mutableStateOf("dev.jamescullimore.android_security_training.DEMO") }
-
-                    Column(modifier = Modifier
-                        .padding(innerPadding)
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp)) {
-                        Text("Android Multi-User Architecture Lab — Variant: ${BuildConfig.FLAVOR}")
-                        Spacer(Modifier.height(8.dp))
-
-                        Button(onClick = { output.value = helper.getRuntimeInfo(this@MultiUserActivity) }) {
-                            Text("Show Runtime Info (user/app/uid)")
-                        }
-                        Button(onClick = { output.value = helper.listUsersBestEffort(this@MultiUserActivity) }) {
-                            Text("List Users")
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = { output.value = helper.savePerUserToken(this@MultiUserActivity, "token-user-${System.currentTimeMillis()}") }) {
-                            Text("Save Per-User Token (secure)")
-                        }
-                        Button(onClick = { output.value = helper.loadPerUserToken(this@MultiUserActivity) }) {
-                            Text("Load Per-User Token (secure)")
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = { output.value = helper.saveGlobalTokenInsecure(this@MultiUserActivity, "GLOBAL-${System.currentTimeMillis()}") }) {
-                            Text("Save GLOBAL Token (INSECURE demo)")
-                        }
-                        Button(onClick = { output.value = helper.loadGlobalTokenInsecure(this@MultiUserActivity) }) {
-                            Text("Load GLOBAL Token (INSECURE demo)")
-                        }
-                        Spacer(Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = targetUser.value,
-                            onValueChange = { targetUser.value = it.filter { ch -> ch.isDigit() }.take(6) },
-                            label = { Text("Target userId (adb pm list users)") }
-                        )
-                        OutlinedTextField(
-                            value = broadcastAction.value,
-                            onValueChange = { broadcastAction.value = it.take(120) },
-                            label = { Text("Broadcast action for cross-user demo") }
-                        )
-                        Button(onClick = {
-                            val id = targetUser.value.toIntOrNull() ?: -1
-                            output.value = helper.tryCrossUserRead(this@MultiUserActivity, id)
-                        }) { Text("Try Cross-User File Read (root demo)") }
-                        Button(onClick = {
-                            val id = targetUser.value.toIntOrNull() ?: -1
-                            output.value = helper.trySendBroadcastAsUser(this@MultiUserActivity, id, broadcastAction.value)
-                        }) { Text("Try sendBroadcastAsUser") }
-                        Button(onClick = {
-                            val id = targetUser.value.toIntOrNull() ?: -1
-                            output.value = helper.tryCreateContextAsUser(this@MultiUserActivity, id)
-                        }) { Text("Try createPackageContextAsUser") }
-
-                        Spacer(Modifier.height(12.dp))
-                        Text(output.value)
-                    }
-                }
+                MultiUserScreen()
             }
         }
     }
+}
+
+@Composable
+fun MultiUserScreen() {
+    val context = LocalContext.current
+    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+        val helper = provideMultiUserHelper()
+        val output = remember { mutableStateOf("Ready. Variant: ${BuildConfig.FLAVOR}") }
+        val targetUser = remember { mutableStateOf("10") } // default demo user id
+        val broadcastAction = remember { mutableStateOf("dev.jamescullimore.android_security_training.DEMO") }
+        Column(modifier = Modifier
+            .padding(innerPadding)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)) {
+            Text("Android Multi-User Architecture Lab — Variant: ${BuildConfig.FLAVOR}")
+            Spacer(Modifier.height(8.dp))
+
+            Button(onClick = { output.value = helper.getRuntimeInfo(context) }) {
+                Text("Show Runtime Info (user/app/uid)")
+            }
+            Button(onClick = { output.value = helper.listUsersBestEffort(context) }) {
+                Text("List Users")
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = { output.value = helper.savePerUserToken(context, "token-user-${System.currentTimeMillis()}") }) {
+                Text("Save Per-User Token (secure)")
+            }
+            Button(onClick = { output.value = helper.loadPerUserToken(context) }) {
+                Text("Load Per-User Token (secure)")
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = { output.value = helper.saveGlobalTokenInsecure(context, "GLOBAL-${System.currentTimeMillis()}") }) {
+                Text("Save GLOBAL Token (INSECURE demo)")
+            }
+            Button(onClick = { output.value = helper.loadGlobalTokenInsecure(context) }) {
+                Text("Load GLOBAL Token (INSECURE demo)")
+            }
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = targetUser.value,
+                onValueChange = { targetUser.value = it.filter { ch -> ch.isDigit() }.take(6) },
+                label = { Text("Target userId (adb pm list users)") }
+            )
+            OutlinedTextField(
+                value = broadcastAction.value,
+                onValueChange = { broadcastAction.value = it.take(120) },
+                label = { Text("Broadcast action for cross-user demo") }
+            )
+            Button(onClick = {
+                val id = targetUser.value.toIntOrNull() ?: -1
+                output.value = helper.tryCrossUserRead(context, id)
+            }) { Text("Try Cross-User File Read (root demo)") }
+            Button(onClick = {
+                val id = targetUser.value.toIntOrNull() ?: -1
+                output.value = helper.trySendBroadcastAsUser(context, id, broadcastAction.value)
+            }) { Text("Try sendBroadcastAsUser") }
+            Button(onClick = {
+                val id = targetUser.value.toIntOrNull() ?: -1
+                output.value = helper.tryCreateContextAsUser(context, id)
+            }) { Text("Try createPackageContextAsUser") }
+
+            Spacer(Modifier.height(12.dp))
+            Text(output.value)
+        }
+    }
+}
+
+@Preview
+@Composable
+internal fun MultiUserScreenPreview(){
+    MultiUserScreen()
 }
