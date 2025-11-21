@@ -141,6 +141,6 @@ fun RisksScreen() {
 
 @Preview
 @Composable
-private fun RisksScreenPreview() {
+internal fun RisksScreenPreview() {
     RisksScreen()
 }

@@ -9,6 +9,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import sergio.sastre.composable.preview.scanner.android.AndroidPreviewInfo
 import sergio.sastre.composable.preview.scanner.android.device.DevicePreviewInfoParser
+import sergio.sastre.composable.preview.scanner.android.screenshotid.AndroidPreviewScreenshotIdBuilder
 import sergio.sastre.composable.preview.scanner.core.preview.ComposablePreview
 
 @RunWith(TestParameterInjector::class)

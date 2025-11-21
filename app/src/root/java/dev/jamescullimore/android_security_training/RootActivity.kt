@@ -35,14 +35,6 @@ class RootActivity : ComponentActivity() {
     }
 }
 
-@Preview
-@Composable
-internal fun RootScreenPreview() {
-    AndroidSecurityTrainingTheme {
-        RootScreen(onToast = {})
-    }
-}
-
 @Composable
 fun RootScreen(onToast: (String) -> Unit) {
     var signals by remember { mutableStateOf<List<RootHelper.RootSignal>>(emptyList()) }
@@ -102,4 +94,11 @@ fun RootScreen(onToast: (String) -> Unit) {
             integrity?.let { Text("Integrity: $it") }
         }
     }
+}
+
+
+@Preview
+@Composable
+internal fun RootScreenPreview() {
+    RootScreen(onToast = {})
 }

@@ -1,5 +1,6 @@
 [versions]
 agp = "8.13.1"
+appcompat = "1.7.1"
 kotlin = "2.2.21"
 coreKtx = "1.17.0"
 junit = "4.13.2"
@@ -18,6 +19,7 @@ paparazzi = "2.0.0-alpha02"
 testParameterInjector = "1.19"
 
 [libraries]
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

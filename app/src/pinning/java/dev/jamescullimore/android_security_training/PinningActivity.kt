@@ -97,6 +97,6 @@ fun PinningScreen() {
 
 @Preview(showBackground = true)
 @Composable
-internal fun TrainingHomePreview() {
+internal fun PinningScreenPreview() {
     PinningScreen()
 }

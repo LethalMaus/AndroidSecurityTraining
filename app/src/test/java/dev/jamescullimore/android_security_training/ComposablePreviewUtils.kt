@@ -10,7 +10,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.DeviceConfig
+import app.cash.paparazzi.HtmlReportWriter
 import app.cash.paparazzi.Paparazzi
+import app.cash.paparazzi.Snapshot
+import app.cash.paparazzi.SnapshotHandler
+import app.cash.paparazzi.SnapshotVerifier
+import app.cash.paparazzi.TestName
+import app.cash.paparazzi.detectEnvironment
 import com.android.ide.common.rendering.api.SessionParams
 import com.android.resources.Density
 import com.android.resources.NightMode
@@ -108,6 +114,7 @@ object DeviceConfigBuilder {
 object PaparazziPreviewRule {
     fun createFor(preview: ComposablePreview<AndroidPreviewInfo>): Paparazzi {
         val previewInfo = preview.previewInfo
+        val tolerance = preview.getAnnotation<PaparazziConfig>()?.maxPercentDifference ?: 0.0
         return Paparazzi(
             deviceConfig = DeviceConfigBuilder.build(preview.previewInfo),
             supportsRtl = true,
@@ -118,7 +125,11 @@ object PaparazziPreviewRule {
                 previewInfo.heightDp > 0 -> SessionParams.RenderingMode.V_SCROLL
                 else -> SessionParams.RenderingMode.SHRINK
             },
-            maxPercentDifference = preview.getAnnotation<PaparazziConfig>()?.maxPercentDifference ?: 0.0
+            snapshotHandler = when(System.getProperty("paparazzi.test.verify")?.toBoolean() == true) {
+                true -> PreviewSnapshotVerifier(tolerance)
+                false -> PreviewHtmlReportWriter()
+            },
+            maxPercentDifference = preview.getAnnotation<PaparazziConfig>()?.maxPercentDifference ?: 0.0,
         )
     }
 }
@@ -157,5 +168,61 @@ fun PreviewBackground(
                 content()
             }
         }
+    }
+}
+
+private class PreviewSnapshotVerifier(
+    maxPercentDifference: Double
+): SnapshotHandler {
+    private val snapshotHandler = SnapshotVerifier(
+        maxPercentDifference = maxPercentDifference
+    )
+    override fun newFrameHandler(
+        snapshot: Snapshot,
+        frameCount: Int,
+        fps: Int
+    ): SnapshotHandler.FrameHandler {
+        val newSnapshot = Snapshot(
+            name = snapshot.name,
+            testName = TestName(packageName = "", className = "", methodName = snapshot.testName.methodName.substringAfterLast("_").substringBeforeLast("]")),
+            timestamp = snapshot.timestamp,
+            tags = snapshot.tags,
+            file = snapshot.file,
+        )
+        return snapshotHandler.newFrameHandler(
+            snapshot = newSnapshot,
+            frameCount = frameCount,
+            fps = fps
+        )
+    }
+
+    override fun close() {
+        snapshotHandler.close()
+    }
+}
+
+private class PreviewHtmlReportWriter: SnapshotHandler {
+    private val snapshotHandler = HtmlReportWriter()
+    override fun newFrameHandler(
+        snapshot: Snapshot,
+        frameCount: Int,
+        fps: Int
+    ): SnapshotHandler.FrameHandler {
+        val newSnapshot = Snapshot(
+            name = snapshot.name,
+            testName = TestName(packageName = "", className = "", methodName = snapshot.testName.methodName.substringAfterLast("_").substringBeforeLast("]")),
+            timestamp = snapshot.timestamp,
+            tags = snapshot.tags,
+            file = snapshot.file,
+        )
+        return snapshotHandler.newFrameHandler(
+            snapshot = newSnapshot,
+            frameCount = frameCount,
+            fps = fps
+        )
+    }
+
+    override fun close() {
+        snapshotHandler.close()
     }
 }

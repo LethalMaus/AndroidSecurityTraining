@@ -1,6 +1,5 @@
 package dev.jamescullimore.android_security_training
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.webkit.WebView
@@ -30,7 +29,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.jamescullimore.android_security_training.ui.theme.AndroidSecurityTrainingTheme
-import dev.jamescullimore.android_security_training.web.VulnWebViewHelper
 import dev.jamescullimore.android_security_training.web.WebViewHelper
 
 class WebActivity : ComponentActivity() {
@@ -138,5 +136,5 @@ fun WebScreen(incoming: Intent?, helper: WebViewHelper) {
 @Preview
 @Composable
 internal fun WebScreenPreview() {
-    AndroidSecurityTrainingTheme { WebScreen(incoming = null, provideWebViewHelper()) }
+    WebScreen(incoming = null, provideWebViewHelper())
 }
