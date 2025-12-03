@@ -16,7 +16,6 @@ import app.cash.paparazzi.Snapshot
 import app.cash.paparazzi.SnapshotHandler
 import app.cash.paparazzi.SnapshotVerifier
 import app.cash.paparazzi.TestName
-import app.cash.paparazzi.detectEnvironment
 import com.android.ide.common.rendering.api.SessionParams
 import com.android.resources.Density
 import com.android.resources.NightMode
@@ -36,20 +35,7 @@ import kotlin.math.ceil
 object ComposablePreviewProvider : TestParameterValuesProvider() {
     override fun provideValues(context: Context?): List<ComposablePreview<AndroidPreviewInfo>> =
         AndroidComposablePreviewScanner()
-            .scanPackageTrees(
-                "dev.jamescullimore.android_security_training",
-                "dev.jamescullimore.android_security_training.vuln",
-                "dev.jamescullimore.android_security_training.pinning",
-                "dev.jamescullimore.android_security_training.re",
-                "dev.jamescullimore.android_security_training.e2e",
-                "dev.jamescullimore.android_security_training.perm",
-                "dev.jamescullimore.android_security_training.links",
-                "dev.jamescullimore.android_security_training.storage",
-                "dev.jamescullimore.android_security_training.root",
-                "dev.jamescullimore.android_security_training.web",
-                "dev.jamescullimore.android_security_training.users",
-                "dev.jamescullimore.android_security_training.risks",
-            )
+            .scanPackageTrees("dev.jamescullimore.android_security_training")
             .includeAnnotationInfoForAllOf(PaparazziConfig::class.java)
             .getPreviews()
 }
